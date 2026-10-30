@@ -181,7 +181,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"[*] Deploying container '{name}' on SSH port {port}...")
             c_info = provisioner.deploy_container(
                 name=name,
-                hostname=name,
+                hostname="vps",
                 ssh_port=port,
                 cpu=specs["cpu"],
                 memory_mb=specs["memory_mb"],

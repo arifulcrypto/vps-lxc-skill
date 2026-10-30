@@ -150,28 +150,27 @@ class LXCProvisioner:
         imgs = json.loads(stdout or "[]")
         return imgs[0]["fingerprint"] if imgs else "ubuntu:22.04"
 
-    def setup_clean_environment(self, name: str, hostname: str, cpu: int, ram_mb: int) -> None:
+    def setup_clean_environment(self, name: str, hostname: str = "vps") -> None:
         """
         Configures a clean, genuine Linux environment inside the container:
-        - Sets the designated hostname and /etc/hosts entry.
+        - Sets the designated hostname ('vps' by default) and /etc/hosts entry.
         - Ensures genuine virtualization detection (removes any fake/spoofed binaries).
-        - Sets a clean, standard login banner (MOTD) displaying allocated system resources.
+        - Sets a clean, standard login banner (MOTD) without specs or numbered identifiers.
         - Sets standard issue banner.
         """
         clean_script = f"""
 set -e
 # 1. Set clean hostname
 hostnamectl set-hostname {hostname} 2>/dev/null || echo "{hostname}" > /etc/hostname
-grep -q "{hostname}" /etc/hosts || echo "127.0.1.1 {hostname}" >> /etc/hosts
+grep -q "127.0.1.1 {hostname}" /etc/hosts || echo "127.0.1.1 {hostname}" >> /etc/hosts
 
 # 2. Ensure genuine virtualization detection (never spoof or fake binaries)
 rm -f /usr/local/bin/systemd-detect-virt /usr/local/bin/virt-what
 
-# 3. Clean and informative MOTD (truthful resource profile, no fake KVM claims)
+# 3. Clean standard login banner (no numbered hostnames or resource quotas printed)
 cat << 'EOF' > /etc/motd
 ========================================================================
-  Welcome to Ubuntu 22.04 LTS ({hostname})
-  Allocated Profile: {cpu} vCPU, {ram_mb}MB RAM
+  Welcome to Ubuntu 22.04 LTS
 ========================================================================
 EOF
 
@@ -261,7 +260,7 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 
         # Setup clean environment (genuine reporting, clean hostname and MOTD)
         print(f"[*] Configuring clean environment on '{name}'...")
-        self.setup_clean_environment(name, hostname, cpu, memory_mb)
+        self.setup_clean_environment(name, hostname=hostname)
 
         # Fetch container info
         code, stdout, _ = self.runner.run(f"lxc list {name} --format json")

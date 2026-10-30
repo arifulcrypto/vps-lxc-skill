@@ -19,7 +19,7 @@
   - 支持标准密码认证（`--ssh-pass` 或环境变量 `VPS_SSH_PASS`）。
 - **干净独立的环境规范（真实透明）**：
   - **真实环境输出**：不伪造虚拟化二进制，不篡改检测命令，环境干净透明。
-  - 规整独立主机名（`vps-01`、`vps-02`）与清晰真实的系统资源登录欢迎横幅（MOTD）。
+  - 统一规范的主机名（`vps`）与纯净标准欢迎横幅（不携带 `01`/`02` 编号后缀与硬件限额信息）。
   - 每个容器使用密码学级随机算法自动生成独立高强度 root 密码，**绝不与宿主机相同**。
 - **首个容器 3X-UI 极速就绪（`--prepare-3xui`，默认开启）**：
   - 第一个容器（`vps-01`）自动预装部署 [vps-deploy-skill](https://github.com/arifulcrypto/vps-deploy-skill) 所需的完整基础组件（`curl, socat, cron, openssl, python3, iptables` 等）。

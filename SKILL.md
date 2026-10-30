@@ -28,7 +28,7 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
   - Supports password authentication (`--ssh-pass`).
 - **Clean & Isolated Environment**:
   - Truthful, genuine environment reporting (zero virtualization spoofing or deceptive wrappers).
-  - Clean hostname configuration (`vps-01`, `vps-02`) and informative resource login banner (MOTD).
+  - Clean unified hostname configuration (`vps`) and clean standard login banner (MOTD without numbered suffixes or hardware leaks).
   - Cryptographically generated independent root passwords (guaranteed distinct from host).
 - **Primary Node 3X-UI Ready (`--prepare-3xui`)**:
   - Container 1 is pre-equipped with prerequisites for `17_vps_skill` (`curl, socat, cron, openssl, python3, iptables`).

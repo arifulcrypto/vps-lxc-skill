@@ -22,7 +22,7 @@
   - Supports password authentication (`--ssh-pass` or `VPS_SSH_PASS`).
 - **Clean & Isolated Environment**:
   - Truthful, genuine environment reporting (zero virtualization spoofing or deceptive wrappers).
-  - Clean hostnames (`vps-01`, `vps-02`) and informative resource login banner (MOTD).
+  - Clean unified hostnames (`vps`) and minimal standard login banner (MOTD without numbered suffixes or hardware leaks).
   - Cryptographically generated independent root passwords (guaranteed distinct from host).
 - **Primary Node 3X-UI Ready (`--prepare-3xui`)**:
   - Container 1 is pre-equipped with the complete package stack needed for [vps-deploy-skill](https://github.com/arifulcrypto/vps-deploy-skill) (`curl, socat, cron, openssl, python3, iptables`).
