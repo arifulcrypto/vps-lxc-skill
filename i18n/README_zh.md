@@ -1,7 +1,7 @@
 # VPS LXC 容器自动化部署 Skill
 
 > Linux VPS 高密度 LXC 容器自动拆分与管理引擎。
-> 快速部署相互隔离的 Linux 容器（默认 2 个，2核CPU、1GB内存、10GB硬盘，或支持宿主机资源智能平分），具备独立 SSH 端口转发、强随机 root 密码、KVM 虚拟机伪装、以及 3X-UI / Docker 嵌套支持。
+> 快速部署相互隔离的 Linux 容器（默认 2 个，2核CPU、1GB内存、10GB硬盘，或支持宿主机资源智能平分），具备独立 SSH 端口转发、强随机 root 密码、干净独立的环境规范、以及 3X-UI / Docker 嵌套支持。
 
 [English](../README.md) | [中文说明](./README_zh.md)
 
@@ -17,10 +17,9 @@
   - 支持非标 SSH 端口（`--ssh-port 2222`）。
   - 支持 SSH 密钥免密认证（`--ssh-key ~/.ssh/id_rsa`，使用密钥时无需依赖 `sshpass`）。
   - 支持标准密码认证（`--ssh-pass` 或环境变量 `VPS_SSH_PASS`）。
-- **面向多租户的 KVM 伪装技术（`--stealth`，默认开启）**：
-  - 针对分租给不同用户的场景深度优化。
-  - 伪装虚拟化感知：`systemd-detect-virt` 与 `virt-what` 命令直接回显 `kvm`。
-  - 定制云服务商 KVM VPS 登录欢迎信息（MOTD）与干净的主机名（`vps-01`、`vps-02`）。
+- **干净独立的环境规范（真实透明）**：
+  - **真实环境输出**：不伪造虚拟化二进制，不篡改检测命令，环境干净透明。
+  - 规整独立主机名（`vps-01`、`vps-02`）与清晰真实的系统资源登录欢迎横幅（MOTD）。
   - 每个容器使用密码学级随机算法自动生成独立高强度 root 密码，**绝不与宿主机相同**。
 - **首个容器 3X-UI 极速就绪（`--prepare-3xui`，默认开启）**：
   - 第一个容器（`vps-01`）自动预装部署 [vps-deploy-skill](https://github.com/arifulcrypto/vps-deploy-skill) 所需的完整基础组件（`curl, socat, cron, openssl, python3, iptables` 等）。

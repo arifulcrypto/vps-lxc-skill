@@ -2,7 +2,7 @@
 """
 VPS LXC Multi-Container Deployment Automation Engine.
 Provisions isolated LXC containers with fair resource sharing / auto-split,
-stealth KVM camouflage, distinct random passwords, independent SSH port forwarding,
+clean environment configuration, distinct random passwords, independent SSH port forwarding,
 and 3X-UI pre-requisite integration.
 
 Usage:
@@ -47,8 +47,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--ssh-base-port", type=int, default=2201, help="Base port for container SSH (default: 2201)")
     parser.add_argument("--prepare-3xui", dest="prepare_3xui", action=argparse.BooleanOptionalAction, default=True,
                         help="Pre-install 3X-UI stack and forward 80/443 on first container (default: on)")
-    parser.add_argument("--stealth", dest="stealth", action=argparse.BooleanOptionalAction, default=True,
-                        help="Enable KVM VPS stealth camouflage (default: on)")
     parser.add_argument("--output-dir", help="Directory to save summary and credentials")
     parser.add_argument("--dry-run", action="store_true", help="Validate plan without making remote changes")
     return parser.parse_args(argv)
@@ -78,7 +76,6 @@ def load_config(args: argparse.Namespace) -> Dict[str, Any]:
     cfg.setdefault("ssh_base_port", 2201)
     cfg.setdefault("auto_split", False)
     cfg.setdefault("prepare_3xui", True)
-    cfg.setdefault("stealth", True)
 
     host_id = cfg.get("ip") or "localhost"
     cfg.setdefault("output_dir", f"./output/{host_id}")
@@ -96,7 +93,6 @@ def parser_default(key: str) -> Any:
         "ssh_base_port": 2201,
         "auto_split": False,
         "prepare_3xui": True,
-        "stealth": True,
         "local": False,
         "dry_run": False
     }
@@ -150,7 +146,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"    - Container: {name} (Role: {role})")
             print(f"      Specs    : {specs['cpu']} vCPU | {specs['memory_mb']}MB RAM | {specs['disk_gb']}GB Disk")
             print(f"      SSH Port : Host :{p} -> Container :22 (User: root, Unique Random Password)")
-            print(f"      Stealth  : {'Enabled (KVM VPS camouflage)' if cfg['stealth'] else 'Disabled'}")
+            print("      Isolation: Unprivileged LXC (security.nesting=true, root user)")
         print("[!] DRY-RUN completed: configuration is valid; no changes made.")
         return 0
 
@@ -190,8 +186,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 cpu=specs["cpu"],
                 memory_mb=specs["memory_mb"],
                 disk_gb=specs["disk_gb"],
-                is_primary_proxy=is_first,
-                stealth=cfg["stealth"]
+                is_primary_proxy=is_first
             )
             deployed.append(c_info)
             print(f"[+] Container '{name}' ready (IP: {c_info['ipv4']}, Port: {port})")

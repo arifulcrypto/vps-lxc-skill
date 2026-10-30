@@ -2,7 +2,7 @@
 name: vps-lxc-creator
 description: >-
   Deploys and manages isolated LXC containers (default 2 containers, 2 vCPU, 1GB RAM,
-  10GB disk, distinct secure root passwords, independent SSH port forwardings, KVM stealth disguise,
+  10GB disk, distinct secure root passwords, independent SSH port forwardings,
   and Docker nesting) on a Linux VPS over SSH or directly on localhost.
 ---
 
@@ -26,10 +26,10 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
   - Supports non-standard SSH ports (`--ssh-port`).
   - Supports SSH private keys (`--ssh-key`) for key-based authentication (no `sshpass` required).
   - Supports password authentication (`--ssh-pass`).
-- **Container Stealth & Camouflage (`--stealth`)**:
-  - Masks virtualization checks: `systemd-detect-virt` and `virt-what` return `kvm`.
-  - Injects authentic Cloud KVM VPS MOTD login banner and clean hostnames (`vps-01`, `vps-02`).
-  - Cryptographically generated independent root passwords (never reused from host).
+- **Clean & Isolated Environment**:
+  - Truthful, genuine environment reporting (zero virtualization spoofing or deceptive wrappers).
+  - Clean hostname configuration (`vps-01`, `vps-02`) and informative resource login banner (MOTD).
+  - Cryptographically generated independent root passwords (guaranteed distinct from host).
 - **Primary Node 3X-UI Ready (`--prepare-3xui`)**:
   - Container 1 is pre-equipped with prerequisites for `17_vps_skill` (`curl, socat, cron, openssl, python3, iptables`).
   - Automatically maps public ports 80 and 443 to Container 1 for instant proxy deployment.
@@ -56,7 +56,7 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
         │    LXC Container: vps-01    │                 │    LXC Container: vps-02    │
         │ - 2 vCPU | 1GB RAM | 10GB   │                 │ - 2 vCPU | 1GB RAM | 10GB   │
         │ - Role: 3X-UI / Web Ready   │                 │ - Role: General Purpose VPS │
-        │ - Ports :80, :443 mapped    │                 │ - KVM Stealth Camouflaged   │
+        │ - Ports :80, :443 mapped    │                 │ - Clean Standard Linux Env  │
         │ - User: root                │                 │ - User: root                │
         │ - Distinct Random Password  │                 │ - Distinct Random Password  │
         │ - Host Port :2201 -> :22    │                 │ - Host Port :2202 -> :22    │
@@ -84,7 +84,6 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
 | `--disk` | int | `10` | Disk allocation in GB per container |
 | `--ssh-base-port` | int | `2201` | Starting host port for SSH port mapping |
 | `--prepare-3xui` | bool | `true` | Pre-install 3X-UI dependencies & map ports 80/443 on container 1 |
-| `--stealth` | bool | `true` | Apply KVM stealth disguise to containers |
 | `--output-dir` | string | `./output/<ip>`| Directory to export credential summary & JSON |
 | `--dry-run` | flag | `false` | Validate inputs and preview configuration |
 

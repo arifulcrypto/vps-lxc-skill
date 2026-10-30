@@ -1,7 +1,7 @@
 # VPS LXC Deployer Skill
 
 > Automated LXC Container Provisioning Engine for Linux VPS Instances.
-> Deploy high-density, isolated containers (2 vCPU, 1GB RAM, 10GB disk, or auto-split) with independent SSH ports, secure random passwords, KVM stealth camouflage, and 3X-UI / Docker nesting support.
+> Deploy high-density, isolated containers (2 vCPU, 1GB RAM, 10GB disk, or auto-split) with independent SSH ports, secure random passwords, clean environment, and 3X-UI / Docker nesting support.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
@@ -20,10 +20,9 @@
   - Supports custom SSH ports (`--ssh-port 2222`).
   - Supports SSH private keys (`--ssh-key ~/.ssh/id_rsa`) without requiring `sshpass`.
   - Supports password authentication (`--ssh-pass` or `VPS_SSH_PASS`).
-- **Container Stealth & Camouflage (`--stealth`)**:
-  - Designed for dividing VPS resources among multiple end-users.
-  - Masks virtualization indicators: `systemd-detect-virt` and `virt-what` report `kvm`.
-  - Realistic Cloud KVM VPS login banner (MOTD) and clean hostnames (`vps-01`, `vps-02`).
+- **Clean & Isolated Environment**:
+  - Truthful, genuine environment reporting (zero virtualization spoofing or deceptive wrappers).
+  - Clean hostnames (`vps-01`, `vps-02`) and informative resource login banner (MOTD).
   - Cryptographically generated independent root passwords (guaranteed distinct from host).
 - **Primary Node 3X-UI Ready (`--prepare-3xui`)**:
   - Container 1 is pre-equipped with the complete package stack needed for [vps-deploy-skill](https://github.com/arifulcrypto/vps-deploy-skill) (`curl, socat, cron, openssl, python3, iptables`).
@@ -88,7 +87,7 @@ python3 scripts/vps_lxc.py --local --count 2
         │    LXC Container: vps-01    │                 │    LXC Container: vps-02    │
         │ - 2 vCPU | 1GB RAM | 10GB   │                 │ - 2 vCPU | 1GB RAM | 10GB   │
         │ - Role: 3X-UI / Web Ready   │                 │ - Role: General Purpose VPS │
-        │ - Ports :80, :443 mapped    │                 │ - KVM Stealth Camouflaged   │
+        │ - Ports :80, :443 mapped    │                 │ - Clean Standard Linux Env  │
         │ - User: root                │                 │ - User: root                │
         │ - Distinct Random Password  │                 │ - Distinct Random Password  │
         │ - Host Port :2201 -> :22    │                 │ - Host Port :2202 -> :22    │

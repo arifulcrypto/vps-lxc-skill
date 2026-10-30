@@ -2,7 +2,7 @@
 """
 Provisioning and container generation logic for VPS LXC Skill.
 Manages host LXD setup, dynamic resource allocation/auto-split,
-stealth KVM camouflage, 3X-UI pre-requisites, and secure credential generation.
+clean Linux container configuration, 3X-UI pre-requisites, and secure credential generation.
 """
 import json
 import secrets
@@ -150,47 +150,36 @@ class LXCProvisioner:
         imgs = json.loads(stdout or "[]")
         return imgs[0]["fingerprint"] if imgs else "ubuntu:22.04"
 
-    def apply_stealth_disguise(self, name: str, hostname: str, cpu: int, ram_mb: int) -> None:
+    def setup_clean_environment(self, name: str, hostname: str, cpu: int, ram_mb: int) -> None:
         """
-        Disguises the container so it appears as a standard KVM VPS to end users:
-        - Masks systemd-detect-virt and virt-what to return 'kvm'.
-        - Sets authentic Cloud VPS login banner (MOTD) and hostname.
-        - Suppresses LXC-specific indicators.
+        Configures a clean, genuine Linux environment inside the container:
+        - Sets the designated hostname and /etc/hosts entry.
+        - Ensures genuine virtualization detection (removes any fake/spoofed binaries).
+        - Sets a clean, standard login banner (MOTD) displaying allocated system resources.
+        - Sets standard issue banner.
         """
-        stealth_script = f"""
+        clean_script = f"""
 set -e
 # 1. Set clean hostname
 hostnamectl set-hostname {hostname} 2>/dev/null || echo "{hostname}" > /etc/hostname
+grep -q "{hostname}" /etc/hosts || echo "127.0.1.1 {hostname}" >> /etc/hosts
 
-# 2. Mask virtualization detection commands
-cat << 'EOF' > /usr/local/bin/systemd-detect-virt
-#!/bin/sh
-echo "kvm"
-exit 0
-EOF
-chmod 755 /usr/local/bin/systemd-detect-virt
+# 2. Ensure genuine virtualization detection (never spoof or fake binaries)
+rm -f /usr/local/bin/systemd-detect-virt /usr/local/bin/virt-what
 
-cat << 'EOF' > /usr/local/bin/virt-what
-#!/bin/sh
-echo "kvm"
-exit 0
-EOF
-chmod 755 /usr/local/bin/virt-what
-
-# 3. Authentic Cloud KVM VPS Login Banner (MOTD)
+# 3. Clean and informative MOTD (truthful resource profile, no fake KVM claims)
 cat << 'EOF' > /etc/motd
 ========================================================================
-  Welcome to Cloud KVM Virtual Private Server
-  System  : Ubuntu 22.04.5 LTS (GNU/Linux x86_64)
-  Profile : Dedicated KVM Cloud Instance ({cpu} vCPU, {ram_mb}MB RAM)
+  Welcome to Ubuntu 22.04 LTS ({hostname})
+  Allocated Profile: {cpu} vCPU, {ram_mb}MB RAM
 ========================================================================
 EOF
 
 # 4. Standard issue banner
-echo "Ubuntu 22.04.5 LTS \\n \\l" > /etc/issue
-echo "Ubuntu 22.04.5 LTS" > /etc/issue.net
+echo "Ubuntu 22.04 LTS \\n \\l" > /etc/issue
+echo "Ubuntu 22.04 LTS" > /etc/issue.net
 """
-        self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(stealth_script)}")
+        self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(clean_script)}")
 
     def prepare_3xui_pre_requisites(self, name: str) -> None:
         """
@@ -214,8 +203,7 @@ fi
     def deploy_container(self, name: str, hostname: str, ssh_port: int,
                          cpu: int = 2, memory_mb: int = 1024, disk_gb: int = 10,
                          custom_pass: Optional[str] = None,
-                         is_primary_proxy: bool = False,
-                         stealth: bool = True) -> Dict[str, Any]:
+                         is_primary_proxy: bool = False) -> Dict[str, Any]:
         """
         Creates and configures an isolated LXC container according to specifications.
         """
@@ -271,10 +259,9 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
             self.runner.run("lxc config device add " + name + " p443 proxy listen=tcp:0.0.0.0:443 connect=tcp:127.0.0.1:443 2>/dev/null || true", check=False)
             self.prepare_3xui_pre_requisites(name)
 
-        # Apply stealth disguise
-        if stealth:
-            print(f"[*] Applying KVM VPS stealth disguise on '{name}'...")
-            self.apply_stealth_disguise(name, hostname, cpu, memory_mb)
+        # Setup clean environment (genuine reporting, clean hostname and MOTD)
+        print(f"[*] Configuring clean environment on '{name}'...")
+        self.setup_clean_environment(name, hostname, cpu, memory_mb)
 
         # Fetch container info
         code, stdout, _ = self.runner.run(f"lxc list {name} --format json")
@@ -303,7 +290,6 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
                 "cpu_cores": cpu,
                 "memory": f"{memory_mb}MB",
                 "disk": f"{disk_gb}GB",
-                "docker_nesting": True,
-                "stealth_kvm": stealth
+                "docker_nesting": True
             }
         }

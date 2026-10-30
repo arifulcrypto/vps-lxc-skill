@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "VPS LXC Deployer API",
-    "description": "Wraps scripts/vps_lxc.py to provision isolated, disguised LXC containers on Linux VPS instances.",
+    "description": "Wraps scripts/vps_lxc.py to provision isolated, clean LXC containers on Linux VPS instances.",
     "version": "1.1.0"
   },
   "servers": [
@@ -71,10 +71,6 @@
                     "default": 2201
                   },
                   "prepare_3xui": {
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "stealth": {
                     "type": "boolean",
                     "default": true
                   },

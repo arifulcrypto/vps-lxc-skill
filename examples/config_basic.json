@@ -12,6 +12,5 @@
   "disk": 10,
   "ssh_base_port": 2201,
   "prepare_3xui": true,
-  "stealth": true,
   "output_dir": "./output/198.51.100.1"
 }

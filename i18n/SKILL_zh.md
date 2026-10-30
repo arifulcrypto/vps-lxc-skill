@@ -2,7 +2,7 @@
 name: vps-lxc-creator
 description: >-
   在 Linux VPS 上通过 SSH 或本地自动化部署并管理高密度隔离的 LXC 容器（默认 2 个容器，2核CPU、1GB内存、
-  10GB硬盘、支持宿主机资源智能平分、各容器专属强随机密码、独立 SSH 端口映射、KVM 虚拟机伪装，以及 Docker 嵌套容器支持）。
+  10GB硬盘、支持宿主机资源智能平分、各容器专属强随机密码、独立 SSH 端口映射，以及 Docker 嵌套容器支持）。
 ---
 
 # VPS LXC Creator Skill（中文）
@@ -23,9 +23,9 @@ description: >-
   - 支持非标 SSH 端口（`--ssh-port`）。
   - 支持 SSH 密钥免密登录（`--ssh-key`，无需 `sshpass`）。
   - 支持密码登录（`--ssh-pass`）。
-- **针对多租户分租的 KVM 伪装体系（`--stealth`）**：
-  - 容器伪装成独立 KVM VPS，`systemd-detect-virt` 与 `virt-what` 均输出 `kvm`。
-  - 注入专业云服务器登录欢迎横幅（MOTD），主机名规整为 `vps-01`、`vps-02`。
+- **干净独立的环境规范（真实透明）**：
+  - **真实环境输出**：不伪造虚拟化二进制，不篡改检测命令，环境干净透明。
+  - 规整独立主机名（`vps-01`、`vps-02`）与清晰真实的系统资源登录欢迎横幅（MOTD）。
   - 每个容器使用密码学级随机算法自动生成独立高强度 root 密码，**绝对不与宿主机相同**。
 - **首个容器 3X-UI 极速就绪（`--prepare-3xui`）**：
   - 容器 1 预装 `17_vps_skill` 所需全套依赖，并自动转发公网 `80` 与 `443` 端口，实现开箱即用。
@@ -55,7 +55,6 @@ description: >-
 | `--disk` | int | `10` | 每台容器分配的磁盘配额（GB） |
 | `--ssh-base-port` | int | `2201` | 容器 SSH 端口映射起始端口号 |
 | `--prepare-3xui` | bool | `true` | 首个容器预装 3X-UI 基础栈并透传 80/443 |
-| `--stealth` | bool | `true` | 启用 KVM 虚拟机伪装 |
 | `--output-dir` | string | `./output/<ip>`| 生成凭据档案与结果数据的存储目录 |
 | `--dry-run` | flag | `false` | 仅验证参数并预览规划，不进行远程变更 |
 
