@@ -1,0 +1,17 @@
+{
+  "ip": "198.51.100.1",
+  "ssh_port": 22,
+  "ssh_user": "root",
+  "ssh_pass": "your_vps_password_here",
+  "ssh_key": "",
+  "count": 2,
+  "names": "vps-01,vps-02",
+  "auto_split": false,
+  "cpu": 2,
+  "memory": 1024,
+  "disk": 10,
+  "ssh_base_port": 2201,
+  "prepare_3xui": true,
+  "stealth": true,
+  "output_dir": "./output/198.51.100.1"
+}

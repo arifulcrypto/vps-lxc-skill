@@ -1,0 +1,2 @@
+# Python standard library is mainly used.
+# External system packages: openssh-client, sshpass

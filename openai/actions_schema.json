@@ -1,0 +1,99 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VPS LXC Deployer API",
+    "description": "Wraps scripts/vps_lxc.py to provision isolated, disguised LXC containers on Linux VPS instances.",
+    "version": "1.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.yourdomain.com/v1"
+    }
+  ],
+  "paths": {
+    "/deploy-lxc": {
+      "post": {
+        "operationId": "deployLXC",
+        "summary": "Deploy isolated LXC containers on a remote VPS",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ip": {
+                    "type": "string",
+                    "description": "Public IPv4 address of the target VPS"
+                  },
+                  "ssh_port": {
+                    "type": "integer",
+                    "default": 22
+                  },
+                  "ssh_user": {
+                    "type": "string",
+                    "default": "root"
+                  },
+                  "ssh_pass": {
+                    "type": "string"
+                  },
+                  "ssh_key": {
+                    "type": "string",
+                    "description": "Path to SSH private key file"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "default": 2
+                  },
+                  "names": {
+                    "type": "string",
+                    "description": "Comma-separated container names (default: vps-01,vps-02)"
+                  },
+                  "auto_split": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Auto-split host RAM & Disk equally between containers"
+                  },
+                  "cpu": {
+                    "type": "integer",
+                    "default": 2
+                  },
+                  "memory": {
+                    "type": "integer",
+                    "default": 1024
+                  },
+                  "disk": {
+                    "type": "integer",
+                    "default": 10
+                  },
+                  "ssh_base_port": {
+                    "type": "integer",
+                    "default": 2201
+                  },
+                  "prepare_3xui": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "stealth": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "required": ["ip"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful deployment response with container credentials"
+          }
+        }
+      }
+    }
+  }
+}
