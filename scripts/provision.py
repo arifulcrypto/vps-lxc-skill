@@ -157,6 +157,8 @@ class LXCProvisioner:
         - Ensures genuine virtualization detection (removes any fake/spoofed binaries).
         - Sets a clean, standard login banner (MOTD) without specs or numbered identifiers.
         - Sets standard issue banner.
+        - Enforces strict container cleanliness: ensures zero internal guide files or markdown notes
+          exist inside the container (/root/CONTAINER_GUIDE.md, /etc/vps-container-info.md).
         """
         clean_script = f"""
 set -e
@@ -177,6 +179,9 @@ EOF
 # 4. Standard issue banner
 echo "Ubuntu 22.04 LTS \\n \\l" > /etc/issue
 echo "Ubuntu 22.04 LTS" > /etc/issue.net
+
+# 5. Strict cleanliness: remove any internal guide files so container remains 100% standard
+rm -f /root/CONTAINER_GUIDE.md /etc/vps-container-info.md
 """
         self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(clean_script)}")
 

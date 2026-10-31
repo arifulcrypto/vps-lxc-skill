@@ -31,8 +31,9 @@
   - Container 4 features native Windows MSTSC direct connection on host port `3389` (TCP & UDP) with 2GB RAM + Swap.
 - **Docker Nesting**:
   - Enables `security.nesting=true` for running Docker and Docker Compose inside containers out of the box.
-- **In-Container Self-Discovery**:
-  - Each container includes `/root/CONTAINER_GUIDE.md` so AI agents can inspect open ports and Cloudflare rules directly.
+- **Host Information Archive & Clean Containers**:
+  - Centralizes all cluster credentials, port forwarding matrices, and Cloudflare Origin Rules under `/root/02project/01LXD_vps_info/<IP>/` on the host.
+  - Strict container cleanliness: containers remain 100% standard and untainted (zero internal guide markdown files).
 
 ---
 
@@ -105,10 +106,12 @@ python3 scripts/vps_lxc.py --ip 198.51.100.1 --ssh-pass 'your_vps_password' --co
 
 ## Output Artifacts
 
-Upon completion, output files are created under `./output/<IP>/`:
+Upon completion, all credentials, port forwarding matrices, and guides are organized under `/root/02project/01LXD_vps_info/<IP>/` (or `./output/<IP>/`):
+- `credentials_and_ports.md`: Comprehensive table of container SSH commands, unique passwords, and complete port mapping matrix.
+- `cloudflare_origin_rules.md`: Guide for setting up Cloudflare Free CDN Origin Rules for portless domain access.
+- `README.md`: Central cluster navigation index.
 - `vps_lxc_<IP>_summary.txt`: Human-readable summary containing connection commands and passwords.
 - `result.json`: Machine-readable JSON metadata for orchestration.
-- `/root/CONTAINER_GUIDE.md`: Generated in each container for AI agent self-discovery.
 
 ---
 

@@ -78,7 +78,8 @@ def load_config(args: argparse.Namespace) -> Dict[str, Any]:
     cfg.setdefault("prepare_3xui", True)
 
     host_id = cfg.get("ip") or "localhost"
-    cfg.setdefault("output_dir", f"./output/{host_id}")
+    default_output = f"/root/02project/01LXD_vps_info/{host_id}" if os.path.exists("/root/02project") else f"./output/{host_id}"
+    cfg.setdefault("output_dir", default_output)
     return cfg
 
 
@@ -193,7 +194,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         print("[*] Phase 6: Generating reports and credential files...")
         paths = save_artifacts(cfg["output_dir"], ip or "localhost", deployed)
-        print(f"[+] Summary saved to: {paths['summary']}")
+        print(f"[+] Credentials & Ports matrix saved to: {paths['credentials_md']}")
+        print(f"[+] Cloudflare Origin Rules saved to: {paths['cloudflare_md']}")
+        print(f"[+] Cluster README saved to: {paths['readme_md']}")
         print(f"[+] JSON result saved to: {paths['result_json']}")
 
         print("\n" + render_summary(ip or "localhost", deployed))

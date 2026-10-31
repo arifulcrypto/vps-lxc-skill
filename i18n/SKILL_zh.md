@@ -36,8 +36,9 @@ description: >-
   - 预开启 `security.nesting=true`，容器内可直接原生安装并运行 Docker 与 Docker Compose。
 - **内核级 Swap 弹性支持**：
   - 默认开启 `limits.memory.swap=true`，面对桌面环境、Google Chrome、编译等突发内存开销，内核平滑分页至宿主机 Swap，彻底杜绝进程被 OOM 强杀。
-- **容器自描述文档体系（`/root/CONTAINER_GUIDE.md`）**：
-  - 每台容器内部均自动注入专属的 `/root/CONTAINER_GUIDE.md`，详细记录已映射的公网端口、协议及 Cloudflare 回源配置范式。后续的大模型/Agent 仅需登录容器即可完全自适应运维，无需向宿主机索要特权。
+- **宿主机集中信息归档中心（`/root/02project/01LXD_vps_info/<IP>/`）**：
+  - 将所有容器的访问凭据、端口映射表、Cloudflare 回源规则统一集中归档于宿主机专用目录，便于统一运维与检索。
+  - **严守容器纯净原则**：所有容器内部均保持标准纯净官方 Linux 环境，严禁在租户容器内乱塞维护说明或 markdown 文件（不生成 `/root/CONTAINER_GUIDE.md`）。
 
 ---
 
@@ -112,7 +113,7 @@ Cloudflare 官方免费套餐支持通过以下 6 个端口代理 HTTPS 流量�
 | `--disk` | int | `10` | 每台容器分配的磁盘配额（GB） |
 | `--ssh-base-port` | int | `2201` | 容器 SSH 端口映射起始端口号 |
 | `--prepare-3xui` | bool | `true` | 首个容器预装 3X-UI 基础栈并透传 80/443 |
-| `--output-dir` | string | `./output/<ip>`| 生成凭据档案与结果数据的存储目录 |
+| `--output-dir` | string | `/root/02project/01LXD_vps_info/<ip>` | 生成凭据档案与结果数据的存储目录 |
 | `--dry-run` | flag | `false` | 仅验证参数并预览规划，不进行远程变更 |
 
 ---
@@ -121,15 +122,18 @@ Cloudflare 官方免费套餐支持通过以下 6 个端口代理 HTTPS 流量�
 
 1. **宿主机视角调度**：
    - 收集 VPS IP 与 root 凭据后调用 `scripts/vps_lxc.py` 自动化建构容器底座与全局 Proxy 设备，严禁手工乱改宿主机 iptables。
-2. **容器内部视角自运维**：
-   - 当大模型/Agent 通过容器 SSH（`ssh -p <2201-2204> root@<ip>`）登录容器后，**无需索要宿主机权限**；
-   - 直接读取 `/root/CONTAINER_GUIDE.md` 即可查询宿主机已映射的所有公网端口和推荐绑定服务；
-   - 在预开通的端口上直接启动 Nginx、Node.js、XRDP 或 Docker 服务，实现完全自主运维。
+2. **凭据与架构检索**：
+   - 大模型/Agent 在宿主机上读取 `/root/02project/01LXD_vps_info/<IP>/` 目录即可获取全套凭据表、端口转发矩阵与 Cloudflare 回源指引；
+   - 容器内部保持完全纯净，租户体验与真实独立 VPS 完全一致。
 
 ---
 
 ## 六、交付物与归档清单
 
-- `vps_lxc_<IP>_summary.txt`：每台容器的 SSH 命令、内网 IP 与高强度随机密码表格。
-- `result.json`：机器可读的结构化配置数据，方便编排。
-- `/root/CONTAINER_GUIDE.md`：每台容器内部的公网端口对照与 Cloudflare 回源指引文档。
+所有集群信息统一保存在宿主机 `/root/02project/01LXD_vps_info/<IP>/`：
+
+- `credentials_and_ports.md`：每台容器的 SSH 命令、内网 IP、高强度随机密码与完整端口映射表格。
+- `cloudflare_origin_rules.md`：Cloudflare 免费 CDN 免端口回源配置全指南。
+- `README.md`：集群全局导航总览与快速连接命令。
+- `vps_lxc_<IP>_summary.txt`：纯文本连接速查表格。
+- `result.json`：机器可读的结构化配置数据，方便自动化流水线集成。

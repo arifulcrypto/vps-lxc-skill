@@ -28,8 +28,9 @@
   - 第 4 台专机原生绑定宿主机公网 `3389` 端口（TCP & UDP），分配 2GB 内存并开启 Swap，Windows 自带远程桌面客户端（`mstsc`）直连秒开。
 - **内核级 Swap 分页支持**：
   - 默认开启 Swap 支持，防止 Chrome、编译或高并发应用遭遇 Linux OOM 强杀。
-- **容器内部自描述指引（`/root/CONTAINER_GUIDE.md`）**：
-  - 每台容器自动内置网络端口映射与 Cloudflare 回源指引文档，AI Agent 登录容器后即可自行查表建站。
+- **宿主机集中归档与容器纯净保障**：
+  - 所有集群凭据、端口映射矩阵与 Cloudflare 回源指南统一保存在宿主机 `/root/02project/01LXD_vps_info/<IP>/`。
+  - 严守容器纯净原则，容器内部为标准官方系统，不注入任何 markdown 说明文件。
 
 ---
 
@@ -102,10 +103,12 @@ python3 scripts/vps_lxc.py --ip 198.51.100.1 --ssh-pass 'your_vps_password' --co
 
 ## 部署档案与产物说明
 
-部署完成后，脚本将在 `./output/<IP>/` 下生成档案：
-1. `vps_lxc_<IP>_summary.txt`：清晰整洁的终端连接信息、内网 IP、映射端口及各容器专属 root 密码。
-2. `result.json`：供第三方程序或自动化管道调用的结构化 JSON 数据。
-3. `/root/CONTAINER_GUIDE.md`：每台容器内部均自带端口映射与 Cloudflare 回源指引文档。
+部署完成后，所有集群凭据与文档将保存在宿主机 `/root/02project/01LXD_vps_info/<IP>/`（或 `./output/<IP>/`）：
+1. `credentials_and_ports.md`：详细的容器 SSH 命令、内网 IP、各容器专属 root 密码及完整端口映射矩阵。
+2. `cloudflare_origin_rules.md`：Cloudflare 免费 CDN 免端口回源配置全指南。
+3. `README.md`：集群全局导航总览与快速连接命令。
+4. `vps_lxc_<IP>_summary.txt`：清晰整洁的终端连接信息速查文本。
+5. `result.json`：供第三方程序或自动化管道调用的结构化 JSON 数据。
 
 ---
 

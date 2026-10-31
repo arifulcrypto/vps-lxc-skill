@@ -39,8 +39,9 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
   - Pre-enables `security.nesting=true` for running Docker, Docker Compose, and containerd seamlessly inside LXC.
 - **Kernel-Level Swap Support**:
   - Sets `limits.memory.swap=true` so containers under burst workloads (desktop environments, Chrome, compilations) page gracefully to host swap rather than getting killed by OOM.
-- **Container Self-Discovery (`/root/CONTAINER_GUIDE.md`)**:
-  - Every container is automatically equipped with `/root/CONTAINER_GUIDE.md` detailing all forwarded public ports, recommended bindings, and Cloudflare Origin Rules. External AI agents can discover their network boundaries without host privileges.
+- **Central Host Information Archive (`/root/02project/01LXD_vps_info/<IP>/`)**:
+  - Centralizes all connection credentials, port mapping matrices, Cloudflare Origin Rules, and container guides into a dedicated host directory (`/root/02project/01LXD_vps_info/<IP>/`).
+  - **Strict Container Cleanliness**: Containers remain completely clean, untainted official Linux installations. Zero internal guide files or markdown notes are placed inside tenant containers.
 
 ---
 
@@ -116,7 +117,7 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--disk` | int | `10` | Disk allocation in GB per container |
 | `--ssh-base-port` | int | `2201` | Starting host port for SSH port mapping |
 | `--prepare-3xui` | bool | `true` | Pre-install 3X-UI dependencies & map ports 80/443 on container 1 |
-| `--output-dir` | string | `./output/<ip>`| Directory to export credential summary & JSON |
+| `--output-dir` | string | `/root/02project/01LXD_vps_info/<ip>` | Directory to export credential summaries, markdown guides & JSON |
 | `--dry-run` | flag | `false` | Validate inputs and preview configuration |
 
 ---
@@ -126,13 +127,17 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 1. **Collect & Validate**: Gather target VPS IP, SSH credentials (password or private key, custom port if any), and container specifications.
 2. **Preview (Dry-run)**: Generate a config JSON or CLI invocation and run with `--dry-run`. Present the planned containers, ports, and resource limits to the user.
 3. **Execute**: Call `python3 scripts/vps_lxc.py --config <file>`. Do not improvise ad-hoc SSH or iptables commands.
-4. **Deliver Credentials**: Read `./output/<ip>/vps_lxc_<ip>_summary.txt` and `result.json`. Present the SSH connection commands and distinct random passwords to the user. Remind the user that these are credentials.
-5. **In-Container Operations**: When an agent logs into any container via SSH (`ssh -p <port> root@<ip>`), the agent should read `/root/CONTAINER_GUIDE.md` to discover all pre-forwarded public ports and Cloudflare origin rules without needing host credentials.
+4. **Deliver Credentials**: Read `/root/02project/01LXD_vps_info/<ip>/credentials_and_ports.md` (or `./output/<ip>/`). Present the SSH connection commands and distinct random passwords to the user.
+5. **Cluster Documentation & Management**: Read `/root/02project/01LXD_vps_info/<ip>/` on the host to discover all pre-forwarded public ports, Cloudflare Origin Rules, and container parameters. Containers remain standard and clean.
 
 ---
 
 ## 6. Generated Artifacts
 
-- `vps_lxc_<IP>_summary.txt`: Human-readable summary table containing container IPs, mapped ports, and unique passwords.
-- `result.json`: Machine-readable JSON for orchestration and CI/CD pipelines.
-- `/root/CONTAINER_GUIDE.md`: In-container documentation file generated inside each container.
+All cluster documentation and credentials are organized cleanly in `/root/02project/01LXD_vps_info/<IP>/`:
+
+- `credentials_and_ports.md`: Comprehensive table of all container SSH commands, unique passwords, and complete port mapping matrix.
+- `cloudflare_origin_rules.md`: Step-by-step guide for configuring Cloudflare Free Origin Rules to route standard HTTPS domains to alternate container ports.
+- `README.md`: Central cluster navigation index and operational guide.
+- `vps_lxc_<IP>_summary.txt`: Plain-text quick reference archive.
+- `result.json`: Machine-readable deployment metadata for orchestration and CI/CD pipelines.
