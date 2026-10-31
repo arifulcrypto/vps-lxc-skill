@@ -1,9 +1,9 @@
 ---
 name: vps-lxc-creator
 description: >-
-  Deploys and manages isolated LXC containers (default 2 containers, 2 vCPU, 1GB RAM,
+  Deploys and manages isolated LXC containers (2-4 containers, 2 vCPU, 1-2GB RAM,
   10GB disk, distinct secure root passwords, independent SSH port forwardings,
-  and Docker nesting) on a Linux VPS over SSH or directly on localhost.
+  Cloudflare CDN port matrix, RDP remote desktop, and Docker nesting) on a Linux VPS over SSH or directly on localhost.
 ---
 
 # VPS LXC Creator Skill
@@ -20,7 +20,7 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
 
 - **Automated Host Setup**: Auto-detects and installs snap LXD on Ubuntu/Debian/CentOS, initializes storage pools (`dir`), and provisions a managed bridge (`lxdbr0`) with IPv4/IPv6 NAT out of the box.
 - **Hardware Isolation & Auto-Split**:
-  - **Fixed Specification Mode (Default)**: 2 vCPU, 1024MB RAM (strict cgroup memory quota, swap isolation), 10GB disk quota.
+  - **Fixed Specification Mode (Default)**: 2 vCPU, 1024MB RAM (strict cgroup memory quota, swap enabled), 10GB disk quota.
   - **Auto-Split Mode (`--auto-split`)**: Auto-detects host RAM and disk, reserves host OS headroom, and fairly divides resources equally among containers.
 - **SSH Connectivity & Key Support**:
   - Supports non-standard SSH ports (`--ssh-port`).
@@ -34,39 +34,71 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
   - Container 1 is pre-equipped with prerequisites for `17_vps_skill` (`curl, socat, cron, openssl, python3, iptables`).
   - Automatically maps public ports 80 and 443 to Container 1 for instant proxy deployment.
 - **Independent SSH Management**:
-  - Maps host ports (default `2201`, `2202`, ...) directly to container SSH port 22 using LXD proxy devices (zero impact on host SSH port 22).
+  - Maps host ports (default `2201`, `2202`, `2203`, `2204`) directly to container SSH port 22 using LXD proxy devices (zero impact on host SSH port 22).
 - **Nested Container Support**:
   - Pre-enables `security.nesting=true` for running Docker, Docker Compose, and containerd seamlessly inside LXC.
+- **Kernel-Level Swap Support**:
+  - Sets `limits.memory.swap=true` so containers under burst workloads (desktop environments, Chrome, compilations) page gracefully to host swap rather than getting killed by OOM.
+- **Container Self-Discovery (`/root/CONTAINER_GUIDE.md`)**:
+  - Every container is automatically equipped with `/root/CONTAINER_GUIDE.md` detailing all forwarded public ports, recommended bindings, and Cloudflare Origin Rules. External AI agents can discover their network boundaries without host privileges.
 
 ---
 
-## 2. Architecture
+## 2. Multi-Container Topologies & Port Matrix
+
+### 4-Container Standard Architecture
 
 ```
-                       ┌──────────────────────────────────────────────┐
-                       │          Host VPS (IPv4 / IPv6)              │
-                       │          Host SSH: port 22 (untouched)       │
-                       └──────────────────────┬───────────────────────┘
-                                              │
-                                Managed Bridge lxdbr0 (NAT)
-                                              │
-                      ┌───────────────────────┴───────────────────────┐
-                      │                                               │
-        ┌─────────────▼───────────────┐                 ┌─────────────▼───────────────┐
-        │    LXC Container: vps-01    │                 │    LXC Container: vps-02    │
-        │ - 2 vCPU | 1GB RAM | 10GB   │                 │ - 2 vCPU | 1GB RAM | 10GB   │
-        │ - Role: 3X-UI / Web Ready   │                 │ - Role: General Purpose VPS │
-        │ - Ports :80, :443 mapped    │                 │ - Clean Standard Linux Env  │
-        │ - User: root                │                 │ - User: root                │
-        │ - Distinct Random Password  │                 │ - Distinct Random Password  │
-        │ - Host Port :2201 -> :22    │                 │ - Host Port :2202 -> :22    │
-        │ - Docker Nesting: Enabled   │                 │ - Docker Nesting: Enabled   │
-        └─────────────────────────────┘                 └─────────────────────────────┘
+                        ┌────────────────────────────────────────────────────────┐
+                        │             Host VPS (1 Public IPv4 / IPv6)            │
+                        │             Host SSH: port 22 (untouched)              │
+                        └──────────────────────────┬─────────────────────────────┘
+                                                   │
+                         Managed Bridge: 10.0.43.1/24 (IPv4/IPv6 NAT)
+                                                   │
+     ┌──────────────────────┬──────────────────────┴──────────────────────┬──────────────────────┐
+     │                      │                                             │                      │
+┌────▼─────────────┐   ┌────▼─────────────┐                         ┌─────▼────────────┐   ┌─────▼────────────┐
+│ c1-proxy (vps)   │   │ c2-app (vps)     │                         │ c3-backup (vps)  │   │ c4-desktop (vps) │
+│ - IP: 10.0.43.10 │   │ - IP: 10.0.43.20 │                         │ - IP: 10.0.43.30 │   │ - IP: 10.0.43.40 │
+│ - RAM: 1GB+Swap  │   │ - RAM: 1GB+Swap  │                         │ - RAM: 768MB+Swap│   │ - RAM: 2GB+Swap  │
+│ - SSH: 2201      │   │ - SSH: 2202      │                         │ - SSH: 2203      │   │ - SSH: 2204      │
+│ - CF CDN: 443    │   │ - CF CDN: 8443   │                         │ - CF CDN: 2053   │   │ - CF CDN: 2083   │
+│ - 3X-UI: 54840   │   │ - 3X-UI: 54841   │                         │ - Panel: 54842   │   │ - RDP: 3389(RDP) │
+│ - REALITY: 20159 │   │ - REALITY: 20160 │                         │ - REALITY: 20161 │   │ - Web: 8088      │
+│ - HY2: 42972(UDP)│   │ - HY2: 42973(UDP)│                         │ - HY2: 42974(UDP)│   │ - Apps: 10041-42 │
+└──────────────────┘   └──────────────────┘                         └──────────────────┘   └──────────────────┘
 ```
+
+### Complete Port Allocation Matrix
+
+| Container ID | Internal IP | SSH Port | Cloudflare HTTPS CDN Port | Proxy & Core Service Ports | Extra Pre-Mapped Port Pool | Primary Role |
+| :--- | :--- | :---: | :---: | :--- | :--- | :--- |
+| **`c1-proxy`** | `10.0.43.10` | `2201` | **`80, 443`** (Primary) | `54840` (3X-UI), `20159` (REALITY), `42972` (HY2 UDP) | `10011`, `10012` | Primary Proxy & Web Gateway |
+| **`c2-app`** | `10.0.43.20` | `2202` | **`8443`** | `54841` (3X-UI), `20160` (REALITY), `42973` (HY2 UDP) | `10021`, `10022` | Secondary Proxy & Web App |
+| **`c3-backup`**| `10.0.43.30` | `2203` | **`2053`** | `54842` (Panel), `20161` (REALITY), `42974` (HY2 UDP) | `10031`, `10032` | Standby Microservice & Backup |
+| **`c4-desktop`**| `10.0.43.40` | `2204` | **`2083`** | **`3389` (Windows MSTSC RDP Direct)**, `8088` (Web) | `10041`, `10042` | Desktop (XFCE4+XRDP+Chrome) & Web |
 
 ---
 
-## 3. Inputs & Parameters
+## 3. Cloudflare Origin Rules Guide (Pure Domain Access)
+
+Cloudflare Free Plan officially supports proxying HTTPS over 6 ports: `443, 8443, 2053, 2083, 2087, 2096`.  
+Using Cloudflare **Origin Rules**, visitors access websites via pure standard domains (`https://sub.domain.com`) without specifying port numbers in browser:
+
+1. **DNS Setup**: Point `sub.domain.com` to host public IP with Orange Cloud (Proxied) enabled.
+2. **Create Origin Rule** in Cloudflare Dashboard:
+   - Navigate to: **Rules** -> **Origin Rules** -> **Create Rule**.
+   - Expression: `Hostname equals sub.domain.com`
+   - Destination Port: Select **Rewrite to...** and enter the container's designated Cloudflare port (e.g. `8443` for `c2`, `2053` for `c3`, `2083` for `c4`).
+3. **Visitor Experience**:
+   - Visitors access `https://sub.domain.com` directly over standard port 443.
+   - Cloudflare edge proxies and rewrites destination port to your container port.
+   - Clean URLs, valid SSL certificates, DDoS protection, and CDN caching out of the box.
+
+---
+
+## 4. Inputs & Parameters
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -76,7 +108,7 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
 | `--ssh-pass` | string | — | Host SSH password (or `VPS_SSH_PASS` env var) |
 | `--ssh-key` | string | — | Path to SSH private key file |
 | `--local` | flag | `false` | Execute directly on the local host |
-| `--count` | int | `2` | Number of LXC containers to create |
+| `--count` | int | `2` | Number of LXC containers to create (supports up to 4) |
 | `--names` | string | `vps-01,vps-02` | Comma-separated custom container names |
 | `--auto-split` | flag | `false` | Auto-detect host specs and divide RAM/Disk fairly |
 | `--cpu` | int | `2` | vCPU allocation per container |
@@ -89,16 +121,18 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
 
 ---
 
-## 4. Runbook for Agents
+## 5. Runbook for Agents
 
 1. **Collect & Validate**: Gather target VPS IP, SSH credentials (password or private key, custom port if any), and container specifications.
 2. **Preview (Dry-run)**: Generate a config JSON or CLI invocation and run with `--dry-run`. Present the planned containers, ports, and resource limits to the user.
 3. **Execute**: Call `python3 scripts/vps_lxc.py --config <file>`. Do not improvise ad-hoc SSH or iptables commands.
 4. **Deliver Credentials**: Read `./output/<ip>/vps_lxc_<ip>_summary.txt` and `result.json`. Present the SSH connection commands and distinct random passwords to the user. Remind the user that these are credentials.
+5. **In-Container Operations**: When an agent logs into any container via SSH (`ssh -p <port> root@<ip>`), the agent should read `/root/CONTAINER_GUIDE.md` to discover all pre-forwarded public ports and Cloudflare origin rules without needing host credentials.
 
 ---
 
-## 5. Generated Artifacts
+## 6. Generated Artifacts
 
 - `vps_lxc_<IP>_summary.txt`: Human-readable summary table containing container IPs, mapped ports, and unique passwords.
 - `result.json`: Machine-readable JSON for orchestration and CI/CD pipelines.
+- `/root/CONTAINER_GUIDE.md`: In-container documentation file generated inside each container.

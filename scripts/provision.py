@@ -219,7 +219,7 @@ fi
             print(f"[*] Applying resource limits for '{name}' (CPU: {cpu}, RAM: {memory_mb}MB, Disk: {disk_gb}GB)...")
             self.runner.run(f"lxc config set {name} limits.cpu {cpu}")
             self.runner.run(f"lxc config set {name} limits.memory {memory_mb}MB")
-            self.runner.run(f"lxc config set {name} limits.memory.swap false")
+            self.runner.run(f"lxc config set {name} limits.memory.swap true")
             self.runner.run(f"lxc config set {name} security.nesting true")
 
             # Disk quota
