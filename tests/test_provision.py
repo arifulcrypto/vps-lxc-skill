@@ -6,7 +6,7 @@ import shlex
 
 import pytest
 
-from scripts.provision import LXCProvisioner, PASSWORD_KEY, deployer_config, parse_size_mb, validate_plan
+from scripts.provision import LXCProvisioner, PASSWORD_KEY, deployer_config, grade_host, parse_size_mb, validate_plan
 from scripts.remote import RemoteError
 from scripts.report import render_relay_and_exit_guide
 
@@ -397,3 +397,54 @@ def test_lxd_4_missing_object_wording_counts_as_missing():
     lxd = FakeLXD()
     lxd.dispatch = lambda cmd: (1, "", "Error: Fetch profile: No such object")
     assert LXCProvisioner(lxd).query("/1.0/profiles/x", missing_ok=True) is None
+
+
+GOOD_HOST = {"OS_ID": "ubuntu", "OS_VERSION": "24.04", "KERNEL": "6.8.0-40-generic", "VIRT": "kvm", "MEM_MB": "2048",
+             "SWAP_MB": "1024", "DISK_FREE_GB": "30", "LXD": "5.21.9 LTS"}
+
+
+def levels(facts, count=1):
+    return {c["item"]: c["level"] for c in grade_host(dict(GOOD_HOST, **facts), count)}
+
+
+def test_recommended_host_has_no_findings():
+    assert set(levels({}).values()) == {"ok"}
+
+
+def test_lxd_not_installed_yet_is_fine():
+    assert levels({"LXD": ""})["LXD"] == "ok"
+
+
+@pytest.mark.parametrize("virt", ["openvz", "lxc", "docker"])
+def test_container_vps_cannot_run_lxd(virt):
+    assert levels({"VIRT": virt})["Virtualization"] == "fail"
+
+
+@pytest.mark.parametrize("facts,item", [
+    ({"OS_ID": "ubuntu", "OS_VERSION": "20.04"}, "Operating system"),
+    ({"OS_ID": "debian", "OS_VERSION": "11"}, "Operating system"),
+    ({"OS_ID": "centos", "OS_VERSION": "7"}, "Operating system"),
+    ({"KERNEL": "5.4.0-216-generic"}, "Kernel"),
+    ({"LXD": "4.0.15"}, "LXD"),
+    ({"MEM_MB": "768"}, "Memory"),
+    ({"SWAP_MB": "0"}, "Swap"),
+    ({"DISK_FREE_GB": "4"}, "Free disk"),
+])
+def test_outdated_or_small_hosts_get_a_warning(facts, item):
+    assert levels(facts)[item] == "warn"
+
+
+def test_requirements_scale_with_the_container_count():
+    assert levels({"MEM_MB": "2048"}, count=4)["Memory"] == "warn"
+
+
+def test_debian_images_get_an_ssh_server_before_it_is_configured():
+    lxd = FakeLXD()
+    deploy(provisioner(lxd))
+    install = next(i for i, c in enumerate(lxd.commands) if "openssh-server iproute2" in c)
+    configure = next(i for i, c in enumerate(lxd.commands) if "PermitRootLogin" in c)
+    assert install < configure
+
+
+def test_deployer_config_includes_the_exit_port():
+    assert deployer_config("203.0.113.10", 2, 2202, "pw")["exit_port"] == 10023
