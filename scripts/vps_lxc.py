@@ -38,6 +38,7 @@ DEFAULTS: Dict[str, Any] = {
     "local": False,
     "dry_run": False,
     "rotate_passwords": False,
+    "host_tuning": True,
     "image": DEFAULT_IMAGE,
     "storage_driver": "dir",
 }
@@ -62,6 +63,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--memory", type=int, help="Memory limit in MB (default: 1024)")
     parser.add_argument("--disk", type=int, help="Disk quota in GB (default: 10)")
     parser.add_argument("--ssh-base-port", type=int, help="Base port for container SSH (default: 2201)")
+    parser.add_argument("--first-index", type=int,
+                        help="Matrix position of the first container, to add containers to a host (default: 1)")
+    parser.add_argument("--https-port", type=int, help="Public HTTPS port for a single container (default: from the matrix)")
+    parser.add_argument("--host-tuning", dest="host_tuning", action=argparse.BooleanOptionalAction, default=None,
+                        help="Set BBR and UDP buffers on the host (default: on)")
     parser.add_argument("--listen-ip", help="Host IPv4 address for port forwards (default: auto-detected)")
     parser.add_argument("--image", help=f"Container image (default: {DEFAULT_IMAGE})")
     parser.add_argument("--storage-driver", choices=["dir", "btrfs", "zfs", "lvm"],
@@ -136,7 +142,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("[!] DRY-RUN plan preview (no network calls):")
         for idx, name in enumerate(container_names):
             p = ports[idx]
-            role = "Primary (3X-UI / Web Ready with ports 80/443)" if (idx == 0 and cfg["prepare_3xui"]) else "General Purpose VPS"
+            role = "Primary (3X-UI / Web Ready with ports 80/443)" if (plan["indices"][idx] == 1 and cfg["prepare_3xui"]) else "General Purpose VPS"
             print(f"    - Container: {name} (Role: {role})")
             print(f"      Specs    : {cfg['cpu']} vCPU | {cfg['memory']}MB RAM | {cfg['disk']}GB Disk")
             print(f"      SSH Port : Host :{p} -> Container :22 (User: root, Unique Random Password)")
@@ -163,11 +169,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         host_ip = provisioner.detect_host_ip(cfg.get("listen_ip"))
         planned = [p for defs in plan["matrix"] for p in defs]
-        provisioner.preflight_host_ports(planned)
+        provisioner.preflight_host_ports(planned, container_names)
 
         print("[*] Phase 2: Verifying storage pool, managed bridge and profile...")
         provisioner.ensure_storage_and_network()
-        host_state = provisioner.apply_host_network(planned)
+        host_state = provisioner.apply_host_network(planned, tune=cfg["host_tuning"])
         print(f"[+] Host firewall: {host_state.get('HOST_FIREWALL')}; forwarding: {host_state.get('HOST_FORWARD')}; "
               f"congestion control: {host_state.get('HOST_CC')}; UDP buffer: {host_state.get('HOST_RMEM_MAX')}")
 
@@ -190,7 +196,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         previous = known_passwords(cfg["output_dir"])
         for idx, name in enumerate(container_names):
             port = ports[idx]
-            is_first = (idx == 0 and cfg["prepare_3xui"])
+            matrix_idx = plan["indices"][idx]
+            is_first = (matrix_idx == 1 and cfg["prepare_3xui"])
             print(f"[*] Deploying container '{name}' on SSH port {port}...")
             c_info = provisioner.deploy_container(
                 name=name,
@@ -200,7 +207,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 memory_mb=specs["memory_mb"],
                 disk_gb=specs["disk_gb"],
                 is_primary_proxy=is_first,
-                container_idx=idx + 1,
+                container_idx=matrix_idx,
+                https_override=plan["https_override"],
                 prepare_3xui=cfg.get("prepare_3xui", True),
                 host_ip=host_ip,
                 public_ip=ip or host_ip,
