@@ -126,6 +126,7 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--storage-driver` | string | `dir` | Driver when the pool has to be created: `dir`, `btrfs`, `zfs`, `lvm` |
 | `--rotate-passwords` | flag | `false` | Generate new root passwords for existing containers |
 | `--check-host` | flag | `false` | Compare the host with the recommendations and change nothing |
+| `--install-boot-check` | flag | `false` | Add the boot self-check for running containers and change nothing else |
 | `--first-index` | int | `1` | Matrix position of the first container, for adding containers to a host |
 | `--https-port` | int | from matrix | Public HTTPS port for a single container |
 | `--host-tuning` | bool | `true` | Set BBR and UDP buffers on the host. Use `--no-host-tuning` on hosts with live services |
@@ -165,3 +166,35 @@ All cluster documentation and credentials are organized cleanly in `/root/02proj
 - **Pair with vps-deploy-skill.** Each container gets `deploy_<name>.json`, or use `--from-lxc result.json --container <name>` in the deployer. Secondary containers do not receive public port 80, so they use `cert_mode: dns-01` when a domain is set.
 - **Adding to a busy host.** `--first-index N --https-port P --no-host-tuning` adds one container without reusing the first positions. The port check covers listening programs and NAT forwards of other containers, which have no listening socket. Tested on a live host with LXD 4.0.15.
 - **Automatic LXD install** supports Ubuntu and Debian. On other systems, install LXD first.
+
+## Reboot Rules
+
+Reboots need no manual work. Every deployment installs a boot self-check.
+
+**What happens automatically after every boot**
+
+1. `vps-lxc-bootcheck.timer` runs 30 seconds after the host starts.
+2. It waits for LXD, starts the listed containers, and starts any watched service that is down.
+3. It reapplies BBR inside each container, because each one keeps its own setting.
+4. It tests every SSH forward and restarts a container once if its forward stays down.
+5. It retries for about 4 minutes, then writes the result to `/var/lib/vps-lxc/boot-status`.
+
+Containers are also set to `boot.autostart=true`. Containers created separately are not touched.
+
+**Rules for agents**
+
+- After a reboot, wait 3 minutes, then read `/var/lib/vps-lxc/boot-status` or run `--check-host`.
+- `OK` means finished. Do not restart anything.
+- `FAILED` lists what stayed down. Read `/var/log/vps-lxc-bootcheck.log`, fix that item, then run `systemctl start vps-lxc-bootcheck.service`.
+- Never reboot again as a first response, and never edit forwarding rules by hand.
+- On a cluster created before this feature, run `--install-boot-check`. It adds the check for running containers and changes nothing else.
+
+**Known reboot behavior**
+
+| What you see | Meaning | Action |
+| :--- | :--- | :--- |
+| `iptables -t nat -S` looks empty, ports still work | LXD may switch to nftables after a boot | None. Check with `nft list ruleset` |
+| Manual `iptables` rules are gone | They were never saved | Save them yourself, or use the provider firewall |
+| Host BBR is off | The setting was never saved | The tool saves it unless `--no-host-tuning` was used |
+| Forwards fail after the provider changes the IP | Forwards are bound to the old address | Re-run the tool, then update DNS |
+| Extra disk is not visible | The partition needs growing | Run `growpart` and `resize2fs` |

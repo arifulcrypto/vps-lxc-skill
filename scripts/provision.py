@@ -13,6 +13,7 @@ import shlex
 import string
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from scripts import boot_check
 from scripts.remote import RemoteError, TargetRunner
 
 PASSWORD_CHARS = string.ascii_letters + string.digits + "@#%="
@@ -370,6 +371,25 @@ class LXCProvisioner:
             return json.loads(stdout)
         except ValueError as e:
             raise RemoteError(f"LXD returned invalid JSON for {path}") from e
+
+    def install_boot_check(self, containers: Sequence[Dict[str, Any]]) -> None:
+        """Enable the self-check for these containers and whichever watched host services are running."""
+        entries = []
+        for c in containers:
+            _, stdout, _ = self.runner.run(boot_check.active_units_script(c["name"]), check=False)
+            entries.append(dict(c, units=boot_check.clean_units(stdout.split())))
+        units = " ".join(boot_check.WATCHED_UNITS)
+        _, stdout, _ = self.runner.run(f"for u in {units}; do systemctl is-active --quiet $u && echo $u; done", check=False)
+        self.runner.run(boot_check.install_script(boot_check.clean_units(stdout.split()), entries))
+
+    def adopt_running_containers(self, host_ip: str) -> List[Dict[str, Any]]:
+        """Containers that are running now, so an existing cluster gets the self-check unchanged."""
+        return [boot_check.discover_container(inst, host_ip) for inst in self.query("/1.0/instances?recursion=1")
+                if inst.get("status") == "Running"]
+
+    def boot_status(self) -> str:
+        _, stdout, _ = self.runner.run(f"cat {boot_check.STATUS} 2>/dev/null || true", check=False)
+        return stdout.strip()
 
     def collect_host_facts(self) -> Dict[str, str]:
         script = """

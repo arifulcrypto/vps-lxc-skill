@@ -124,6 +124,11 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Compare the host with the recommendations and change nothing"
+                  },
+                  "install_boot_check": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Add the boot self-check for running containers and change nothing else"
                   }
                 },
                 "required": [
