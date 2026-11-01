@@ -1,7 +1,7 @@
 ---
 name: vps-lxc-creator
 description: >-
-  Deploys and manages isolated LXC containers (2-4 containers, 2 vCPU, 1-2GB RAM,
+  Deploys and manages isolated LXC containers (1-6 containers, 2 vCPU, 1-2GB RAM,
   10GB disk, distinct secure root passwords, independent SSH port forwardings,
   Cloudflare CDN port matrix, RDP remote desktop, and Docker nesting) on a Linux VPS over SSH or directly on localhost.
 ---
@@ -18,7 +18,7 @@ description: >-
 
 Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The engine is `scripts/vps_lxc.py`; agents should invoke it instead of improvising remote bash commands.
 
-- **Automated Host Setup**: Auto-detects and installs snap LXD on Ubuntu/Debian/CentOS, initializes storage pools (`dir`), and provisions a managed bridge (`lxdbr0`) with IPv4/IPv6 NAT out of the box.
+- **Automated Host Setup**: Auto-detects and installs snap LXD on Ubuntu/Debian, initializes storage pools (`dir` by default), and provisions a managed bridge (`lxdbr0`) with IPv4/IPv6 NAT out of the box.
 - **Hardware Isolation & Auto-Split**:
   - **Fixed Specification Mode (Default)**: 2 vCPU, 1024MB RAM (strict cgroup memory quota, swap enabled), 10GB disk quota.
   - **Auto-Split Mode (`--auto-split`)**: Auto-detects host RAM and disk, reserves host OS headroom, and fairly divides resources equally among containers.
@@ -110,7 +110,7 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--ssh-pass` | string | — | Host SSH password (or `VPS_SSH_PASS` env var) |
 | `--ssh-key` | string | — | Path to SSH private key file |
 | `--local` | flag | `false` | Execute directly on the local host |
-| `--count` | int | `2` | Number of LXC containers to create (supports up to 4) |
+| `--count` | int | `2` | Number of LXC containers, 1-6. Follows `--names` when that is set |
 | `--names` | string | `vps-01,vps-02` | Comma-separated custom container names |
 | `--auto-split` | flag | `false` | Auto-detect host specs and divide RAM/Disk fairly |
 | `--cpu` | int | `2` | vCPU allocation per container |
@@ -119,6 +119,10 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--ssh-base-port` | int | `2201` | Starting host port for SSH port mapping |
 | `--prepare-3xui` | bool | `true` | Pre-install 3X-UI dependencies & map ports 80/443 on container 1 |
 | `--output-dir` | string | `/root/02project/01LXD_vps_info/<ip>` | Directory to export credential summaries, markdown guides & JSON |
+| `--listen-ip` | string | auto | Host IPv4 for port forwards, when auto-detection is wrong |
+| `--image` | string | `ubuntu-minimal:24.04` | Container image |
+| `--storage-driver` | string | `dir` | Driver when the pool has to be created: `dir`, `btrfs`, `zfs`, `lvm` |
+| `--rotate-passwords` | flag | `false` | Generate new root passwords for existing containers |
 | `--dry-run` | flag | `false` | Validate inputs and preview configuration |
 
 ---
@@ -141,4 +145,16 @@ All cluster documentation and credentials are organized cleanly in `/root/02proj
 - `cloudflare_origin_rules.md`: Step-by-step guide for configuring Cloudflare Free Origin Rules to route standard HTTPS domains to alternate container ports.
 - `README.md`: Central cluster navigation index and operational guide.
 - `vps_lxc_<IP>_summary.txt`: Plain-text quick reference archive.
-- `result.json`: Machine-readable deployment metadata for orchestration and CI/CD pipelines.
+- `result.json`: Machine-readable deployment metadata for orchestration and CI/CD pipelines, including each port's effective forwarding mode and any warnings.
+- `deploy_<container>.json`: Ready-to-use input for vps-deploy-skill.
+
+## Behavior You Can Rely On
+
+- **Repeatable runs.** A rerun compares LXD state with the plan and changes only the differences. It applies new limits, starts stopped containers, keeps passwords (use `--rotate-passwords` to change them) and leaves matching port devices alone.
+- **Validated first.** Names, count (1-6), limits and the whole port matrix are checked before any host change. A planned port held by another program stops the run.
+- **Dedicated profile.** Containers use the `vps-lxc` profile. The host's `default` profile is never modified.
+- **Static addresses and kernel NAT.** Containers get `.10`, `.20`, `.30` ... on the bridge, and forwards use LXD NAT mode with the host's real IPv4 address. The result records the mode for each port. `userspace` means the slower fallback was needed.
+- **Host setup.** BBR and 16 MB UDP buffers are set on the host, because containers cannot set them. Active UFW or firewalld gets the bridge and planned-port rules, and a Docker `FORWARD DROP` policy is handled by a small persistent unit.
+- **Honest reports.** `disk_quota_enforced` shows whether the guest really sees the limit. The default `dir` pool only enforces it on ext4/XFS with project quotas, so use `--storage-driver btrfs` on a new pool when you need a hard limit. A name such as `c4-desktop` is only an example: the tool reserves the desktop ports but does not install a desktop.
+- **Pair with vps-deploy-skill.** Each container gets `deploy_<name>.json`, or use `--from-lxc result.json --container <name>` in the deployer. Secondary containers do not receive public port 80, so they use `cert_mode: dns-01` when a domain is set.
+- **Automatic LXD install** supports Ubuntu and Debian. On other systems, install LXD first.

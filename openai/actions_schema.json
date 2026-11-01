@@ -43,7 +43,9 @@
                   },
                   "count": {
                     "type": "integer",
-                    "default": 2
+                    "default": 2,
+                    "minimum": 1,
+                    "maximum": 6
                   },
                   "names": {
                     "type": "string",
@@ -77,9 +79,35 @@
                   "dry_run": {
                     "type": "boolean",
                     "default": false
+                  },
+                  "listen_ip": {
+                    "type": "string",
+                    "description": "Host IPv4 for port forwards (default: auto-detected)"
+                  },
+                  "image": {
+                    "type": "string",
+                    "default": "ubuntu-minimal:24.04"
+                  },
+                  "storage_driver": {
+                    "type": "string",
+                    "enum": [
+                      "dir",
+                      "btrfs",
+                      "zfs",
+                      "lvm"
+                    ],
+                    "default": "dir",
+                    "description": "Driver when the storage pool has to be created"
+                  },
+                  "rotate_passwords": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Generate new root passwords for existing containers"
                   }
                 },
-                "required": ["ip"]
+                "required": [
+                  "ip"
+                ]
               }
             }
           }

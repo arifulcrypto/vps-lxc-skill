@@ -1,7 +1,7 @@
 ---
 name: vps-lxc-creator
 description: >-
-  在 Linux VPS 上通过 SSH 或本地自动化部署并管理高密度隔离的 LXC 容器（支持 2-4 个容器，2核CPU、1-2GB内存、
+  在 Linux VPS 上通过 SSH 或本地自动化部署并管理高密度隔离的 LXC 容器（支持 1-6 个容器，2核CPU、1-2GB内存、
   10GB硬盘、支持宿主机资源智能平分、各容器专属强随机密码、独立 SSH 端口映射、Cloudflare CDN 端口矩阵、RDP 远程桌面直连，以及 Docker 嵌套容器支持）。
 ---
 
@@ -137,3 +137,14 @@ Cloudflare 官方免费套餐支持通过以下 6 个端口代理 HTTPS 流量�
 - `README.md`：集群全局导航总览与快速连接命令。
 - `vps_lxc_<IP>_summary.txt`：纯文本连接速查表格。
 - `result.json`：机器可读的结构化配置数据，方便自动化流水线集成。
+
+## 行为说明
+
+- **可重复执行。** 重新运行时会对比 LXD 现状与计划，只修改差异：应用新的资源限制、启动已停止的容器、保留密码（使用 `--rotate-passwords` 才会更换），未变化的端口设备不会被触碰。
+- **先校验后执行。** 名称、数量（1-6）、资源限制和完整端口矩阵都在修改宿主机前检查。计划端口被其他程序占用时直接停止。
+- **独立 Profile。** 容器使用 `vps-lxc` profile，不修改宿主机的 `default` profile。
+- **静态地址与内核 NAT。** 容器在网桥上获得 `.10`、`.20`、`.30` 等固定地址，端口转发使用 LXD NAT 模式并监听宿主机真实 IPv4。结果中记录每个端口的实际模式，`userspace` 表示使用了较慢的回退方式。
+- **宿主机配置。** BBR 和 16 MB UDP 缓冲区在宿主机设置，因为容器无法自行设置。已启用的 UFW 或 firewalld 会添加网桥与计划端口规则，Docker 的 `FORWARD DROP` 策略由一个持久化单元处理。
+- **如实报告。** `disk_quota_enforced` 表示容器内是否真实看到磁盘限制。默认 `dir` 存储池仅在启用项目配额的 ext4/XFS 上生效，需要硬限制时请在新存储池上使用 `--storage-driver btrfs`。`c4-desktop` 等名称仅为示例：工具只预留桌面端口，不安装桌面环境。
+- **配合 vps-deploy-skill。** 每个容器都会生成 `deploy_<name>.json`，也可在部署工具中使用 `--from-lxc result.json --container <name>`。次级容器没有公网 80 端口，配置域名时使用 `cert_mode: dns-01`。
+- **自动安装 LXD** 支持 Ubuntu 和 Debian，其他系统请先自行安装 LXD。
