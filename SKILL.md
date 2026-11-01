@@ -14,6 +14,8 @@ description: >-
 
 ---
 
+Before setting up a host, read [Host Requirements](docs/host-requirements.md) or run `--check-host`: recommended OS, LXD version, machine sizes, network settings and tested software versions.
+
 ## 1. Overview & Capabilities
 
 Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The engine is `scripts/vps_lxc.py`; agents should invoke it instead of improvising remote bash commands.
@@ -123,6 +125,7 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--image` | string | `ubuntu-minimal:24.04` | Container image |
 | `--storage-driver` | string | `dir` | Driver when the pool has to be created: `dir`, `btrfs`, `zfs`, `lvm` |
 | `--rotate-passwords` | flag | `false` | Generate new root passwords for existing containers |
+| `--check-host` | flag | `false` | Compare the host with the recommendations and change nothing |
 | `--first-index` | int | `1` | Matrix position of the first container, for adding containers to a host |
 | `--https-port` | int | from matrix | Public HTTPS port for a single container |
 | `--host-tuning` | bool | `true` | Set BBR and UDP buffers on the host. Use `--no-host-tuning` on hosts with live services |

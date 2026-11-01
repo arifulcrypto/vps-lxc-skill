@@ -119,6 +119,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Set BBR and UDP buffers on the host"
+                  },
+                  "check_host": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Compare the host with the recommendations and change nothing"
                   }
                 },
                 "required": [
