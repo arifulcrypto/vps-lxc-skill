@@ -27,6 +27,10 @@ PASSWORD_KEY = "user.vps-lxc.password"
 WEB_BACKEND_PORT = 18443
 SUPPORTED_INSTALL_OS = ("ubuntu", "debian")
 PACKAGES = "curl socat cron python3 openssl iproute2 tar ca-certificates ufw iptables openssh-server"
+BASE_PACKAGES = "openssh-server iproute2 ca-certificates"
+RECOMMENDED_OS = {"ubuntu": ("22.04", "24.04"), "debian": ("12", "13")}
+MIN_KERNEL = (5, 15)
+MIN_LXD = (5, 21)
 NAME_RE = re.compile(r"^[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
 
 
@@ -139,6 +143,7 @@ def deployer_config(host_ip: str, idx: int, ssh_port: int, password: Optional[st
         "https_port": https_override or https_port(idx),
         "web_backend_port": WEB_BACKEND_PORT,
         "sub_port": base + 5,
+        "exit_port": base + 3,
         "vmess_port": base + 4,
         "trojan_port": base + 6,
         "cert_mode": "http-01" if idx == 1 and not https_override else "dns-01",
@@ -197,6 +202,59 @@ def validate_plan(cfg: Dict[str, Any]) -> Dict[str, Any]:
                 raise RemoteError(f"Port {p['ext']} for {name} collides with the host SSH port.")
     return {"names": names, "count": count, "ssh_ports": ssh_ports, "matrix": matrix, "indices": indices,
             "https_override": override}
+
+
+def _version(text: str) -> Tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", text)[:2])
+
+
+def grade_host(facts: Dict[str, str], count: int = 1) -> List[Dict[str, str]]:
+    """Compare a host with the recommendations. `fail` stops a run, `warn` is reported and allowed."""
+    checks: List[Dict[str, str]] = []
+
+    def add(level: str, item: str, value: str, advice: str = "") -> None:
+        checks.append({"level": level, "item": item, "value": value, "advice": advice})
+
+    virt = facts.get("VIRT", "unknown")
+    if virt in ("openvz", "lxc", "lxc-libvirt", "docker"):
+        add("fail", "Virtualization", virt, "LXD needs its own kernel features. Use a KVM VPS or bare metal.")
+    else:
+        add("ok", "Virtualization", virt)
+
+    os_id, version = facts.get("OS_ID", ""), facts.get("OS_VERSION", "")
+    current = RECOMMENDED_OS.get(os_id)
+    if current is None:
+        add("warn", "Operating system", f"{os_id} {version}", "Use Ubuntu 24.04 LTS or Debian 12 or 13.")
+    elif _version(version) < _version(current[0]):
+        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Ubuntu 24.04 LTS or Debian 12 or 13.")
+    else:
+        add("ok", "Operating system", f"{os_id} {version}")
+
+    kernel = facts.get("KERNEL", "")
+    add("ok" if _version(kernel) >= MIN_KERNEL else "warn", "Kernel", kernel,
+        "" if _version(kernel) >= MIN_KERNEL else "Use 5.15 or newer for current BBR and cgroup behavior.")
+
+    lxd = facts.get("LXD", "")
+    if not lxd:
+        add("ok", "LXD", "not installed yet", "The tool installs the current LTS through snap.")
+    elif _version(lxd) < MIN_LXD:
+        add("warn", "LXD", lxd, "Upgrade to 5.21 LTS with `snap refresh lxd --channel=5.21/stable`. This is one-way, "
+            "so plan a maintenance window.")
+    else:
+        add("ok", "LXD", lxd)
+
+    ram = int(facts.get("MEM_MB") or 0)
+    needed = HOST_RESERVED_RAM_MB + MIN_MEMORY_MB * count
+    add("ok" if ram >= needed else "warn", "Memory", f"{ram} MB",
+        "" if ram >= needed else f"{count} container(s) need at least {needed} MB.")
+    swap = int(facts.get("SWAP_MB") or 0)
+    add("ok" if swap or ram >= 4096 else "warn", "Swap", f"{swap} MB",
+        "" if swap or ram >= 4096 else "Add 1-2 GB of swap on small hosts.")
+    disk = int(facts.get("DISK_FREE_GB") or 0)
+    disk_needed = HOST_RESERVED_DISK_GB + MIN_DISK_GB * count
+    add("ok" if disk >= disk_needed else "warn", "Free disk", f"{disk} GB",
+        "" if disk >= disk_needed else f"{count} container(s) need at least {disk_needed} GB.")
+    return checks
 
 
 def parse_size_mb(value: str) -> int:
@@ -312,6 +370,22 @@ class LXCProvisioner:
             return json.loads(stdout)
         except ValueError as e:
             raise RemoteError(f"LXD returned invalid JSON for {path}") from e
+
+    def collect_host_facts(self) -> Dict[str, str]:
+        script = """
+. /etc/os-release
+echo "OS_ID=$ID"
+echo "OS_VERSION=$VERSION_ID"
+echo "KERNEL=$(uname -r)"
+echo "VIRT=$(systemd-detect-virt 2>/dev/null || echo none)"
+echo "MEM_MB=$(free -m | awk '/^Mem:/{print $2}')"
+echo "SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')"
+d=/var/snap/lxd/common/lxd; [ -d "$d" ] || d=/var/lib/lxd; [ -d "$d" ] || d=/
+echo "DISK_FREE_GB=$(df -BG --output=avail "$d" | tail -n1 | tr -dc 0-9)"
+echo "LXD=$(command -v lxd >/dev/null 2>&1 && lxd version 2>/dev/null | head -n1)"
+"""
+        _, stdout, _ = self.runner.run(script, check=False)
+        return parse_kv(stdout)
 
     def detect_host_resources(self) -> Dict[str, int]:
         """Detect CPU cores, total RAM in MB, and free disk in GB where LXD stores data."""
@@ -567,6 +641,18 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd
 """
         self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(setup_script)}")
 
+    def install_base_packages(self, name: str) -> None:
+        """Generic images may not have an SSH server, which everything after this relies on."""
+        script = f"""
+set -e
+export DEBIAN_FRONTEND=noninteractive
+if ! dpkg -s {BASE_PACKAGES} >/dev/null 2>&1; then
+    apt-get -o Acquire::Retries=3 update -y >/dev/null </dev/null
+    apt-get -o Acquire::Retries=3 install -y {BASE_PACKAGES} >/dev/null </dev/null
+fi
+"""
+        self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(script)}", timeout=600)
+
     def prepare_3xui_pre_requisites(self, name: str) -> bool:
         """Install what 3X-UI and vps-deploy-skill need. Returns True once packages are observed."""
         print(f"[*] Checking the 3X-UI / vps-deploy-skill stack on '{name}'...")
@@ -672,6 +758,7 @@ dpkg -s {PACKAGES} >/dev/null
         elif ip_changed:
             self.runner.run(f"lxc restart {name} < /dev/null", timeout=120)
         self.wait_ready(name, ip)
+        self.install_base_packages(name)
 
         stored = inst.get("config", {}).get(PASSWORD_KEY)
         password = custom_pass or (None if rotate_password else stored or known_password)

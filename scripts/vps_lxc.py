@@ -21,7 +21,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from scripts.provision import DEFAULT_IMAGE, MAX_CONTAINERS, LXCProvisioner, validate_plan  # noqa: E402
+from scripts.provision import DEFAULT_IMAGE, MAX_CONTAINERS, LXCProvisioner, grade_host, validate_plan  # noqa: E402
 from scripts.remote import RemoteError, TargetRunner  # noqa: E402
 from scripts.report import render_summary, save_artifacts  # noqa: E402
 
@@ -38,6 +38,7 @@ DEFAULTS: Dict[str, Any] = {
     "local": False,
     "dry_run": False,
     "rotate_passwords": False,
+    "check_host": False,
     "host_tuning": True,
     "image": DEFAULT_IMAGE,
     "storage_driver": "dir",
@@ -63,6 +64,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--memory", type=int, help="Memory limit in MB (default: 1024)")
     parser.add_argument("--disk", type=int, help="Disk quota in GB (default: 10)")
     parser.add_argument("--ssh-base-port", type=int, help="Base port for container SSH (default: 2201)")
+    parser.add_argument("--check-host", action="store_true", default=None,
+                        help="Compare the host with the recommendations and exit without changing anything")
     parser.add_argument("--first-index", type=int,
                         help="Matrix position of the first container, to add containers to a host (default: 1)")
     parser.add_argument("--https-port", type=int, help="Public HTTPS port for a single container (default: from the matrix)")
@@ -114,6 +117,13 @@ def known_passwords(output_dir: str) -> Dict[str, str]:
         return {}
 
 
+def print_host_report(checks: List[Dict[str, str]]) -> None:
+    marks = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
+    for check in checks:
+        advice = f" - {check['advice']}" if check["advice"] else ""
+        print(f"    [{marks[check['level']]}] {check['item']}: {check['value']}{advice}")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     cfg = load_config(args)
@@ -161,9 +171,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     provisioner = LXCProvisioner(runner, image=cfg["image"], storage_driver=cfg["storage_driver"])
 
+    if cfg.get("check_host"):
+        try:
+            runner.test_connection()
+            checks = grade_host(provisioner.collect_host_facts(), count)
+        except RemoteError as e:
+            print(f"[-] Host check failed: {e}", file=sys.stderr)
+            return 2
+        print("[*] Host check (nothing was changed):")
+        print_host_report(checks)
+        return 1 if any(c["level"] == "fail" for c in checks) else 0
+
     try:
         print("[*] Phase 1: Testing SSH connection and preparing LXD environment...")
         runner.test_connection()
+        checks = grade_host(provisioner.collect_host_facts(), count)
+        blocking = [c for c in checks if c["level"] == "fail"]
+        if blocking:
+            print_host_report(blocking)
+            return 2
+        provisioner.warnings += [f"{c['item']} {c['value']}: {c['advice']}" for c in checks if c["level"] == "warn"]
         lxd_ver = provisioner.ensure_lxd()
         print(f"[+] LXD daemon ready (version {lxd_ver})")
 

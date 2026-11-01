@@ -5,7 +5,7 @@ set -euo pipefail
 OUT="${1:?usage: lxd_smoke.sh <output-dir>}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST_IP="$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
-run() { python3 "$ROOT/scripts/vps_lxc.py" --local --count 2 --memory 512 --disk 5 --output-dir "$OUT" "$@"; }
+run() { python3 "$ROOT/scripts/vps_lxc.py" --local --count 2 --memory 512 --disk 5 --output-dir "$OUT" ${LXC_IMAGE:+--image "$LXC_IMAGE"} "$@"; }
 field() { python3 - "$OUT/result.json" "$1" <<'PY'
 import json, sys
 print(eval(sys.argv[2], {"r": json.load(open(sys.argv[1]))}))
