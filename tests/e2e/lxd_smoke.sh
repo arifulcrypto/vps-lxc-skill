@@ -39,6 +39,21 @@ python3 "$ROOT/tests/e2e/udp_echo.py" "$HOST_IP" 42973
 echo "Container egress and client address"
 lxc exec vps-02 -- curl -fsS -o /dev/null --max-time 15 https://www.gstatic.com/generate_204
 
+echo "Boot self-check"
+test "$(lxc config get vps-01 boot.autostart)" = true
+systemctl is-enabled vps-lxc-bootcheck.timer
+lxc stop vps-02 --force
+BOOTCHECK_WAIT=5 BOOTCHECK_ATTEMPTS=24 /usr/local/sbin/vps-lxc-bootcheck
+grep -q '^OK ' /var/lib/vps-lxc/boot-status
+lxc query /1.0/instances/vps-02/state | grep -q '"status": "Running"'
+test "$(lxc exec vps-01 -- sysctl -n net.ipv4.tcp_congestion_control)" = bbr
+
+echo "Timer-driven run"
+lxc stop vps-02 --force
+rm -f /var/lib/vps-lxc/boot-status
+systemctl start vps-lxc-bootcheck.service
+grep -q '^OK ' /var/lib/vps-lxc/boot-status
+
 echo "A busy planned port fails before any change"
 python3 -m http.server 10019 --bind 0.0.0.0 >/dev/null 2>&1 &
 BUSY=$!

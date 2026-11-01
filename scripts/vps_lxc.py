@@ -39,6 +39,7 @@ DEFAULTS: Dict[str, Any] = {
     "dry_run": False,
     "rotate_passwords": False,
     "check_host": False,
+    "install_boot_check": False,
     "host_tuning": True,
     "image": DEFAULT_IMAGE,
     "storage_driver": "dir",
@@ -66,6 +67,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--ssh-base-port", type=int, help="Base port for container SSH (default: 2201)")
     parser.add_argument("--check-host", action="store_true", default=None,
                         help="Compare the host with the recommendations and exit without changing anything")
+    parser.add_argument("--install-boot-check", action="store_true", default=None,
+                        help="Add the boot self-check for the containers running now, and change nothing else")
     parser.add_argument("--first-index", type=int,
                         help="Matrix position of the first container, to add containers to a host (default: 1)")
     parser.add_argument("--https-port", type=int, help="Public HTTPS port for a single container (default: from the matrix)")
@@ -180,7 +183,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2
         print("[*] Host check (nothing was changed):")
         print_host_report(checks)
+        print(f"    Last boot check: {provisioner.boot_status() or 'not installed'}")
         return 1 if any(c["level"] == "fail" for c in checks) else 0
+
+    if cfg.get("install_boot_check"):
+        try:
+            runner.test_connection()
+            containers = provisioner.adopt_running_containers(provisioner.detect_host_ip(cfg.get("listen_ip")))
+            provisioner.install_boot_check(containers)
+        except RemoteError as e:
+            print(f"[-] Could not install the boot check: {e}", file=sys.stderr)
+            return 2
+        print(f"[+] Boot check installed for: {', '.join(c['name'] for c in containers) or 'host services only'}")
+        return 0
 
     try:
         print("[*] Phase 1: Testing SSH connection and preparing LXD environment...")
@@ -244,6 +259,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             deployed.append(c_info)
             print(f"[+] Container '{name}' ready (IP: {c_info['ipv4']}, Port: {port})")
+
+        print("[*] Installing the boot self-check...")
+        provisioner.install_boot_check([{"name": c["name"], "ip": host_ip, "ssh_port": c["ssh_port"], "units": []}
+                                        for c in deployed])
 
         print("[*] Phase 6: Generating reports and credential files...")
         paths = save_artifacts(cfg["output_dir"], ip or "localhost", deployed, host_state, provisioner.warnings)
