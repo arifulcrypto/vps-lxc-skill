@@ -30,6 +30,74 @@ def generate_secure_password(length: int = 16) -> str:
     return "".join(pwd)
 
 
+def get_container_port_definitions(container_idx: int, ssh_port: int, is_primary: bool = False) -> List[Dict[str, Any]]:
+    """
+    Returns the comprehensive, multi-protocol port forwarding matrix for a container.
+    Guarantees every container (c1-c4) has abundant ports for:
+    - Independent SSH
+    - Cloudflare CDN Web / HTTPS
+    - 3X-UI visualization panel
+    - VLESS-REALITY-Vision direct
+    - Hysteria 2 UDP direct
+    - Realm Layer 4 relay to US/NAT home broadband
+    - Commercial residential SOCKS5 entry
+    - 233boy legacy VMess-WS / Trojan
+    - Extra pre-mapped port pool (FastAPI, Redis, Docker)
+    """
+    ports = [
+        {"name": f"ssh{ssh_port}", "ext": ssh_port, "int": 22, "proto": "tcp", "role": "SSH 远程管理"}
+    ]
+
+    # Cloudflare CDN Web / HTTPS Port
+    if container_idx == 1:
+        ports.append({"name": "p80", "ext": 80, "int": 80, "proto": "tcp", "role": "HTTP Web / ACME 验证"})
+        ports.append({"name": "p443", "ext": 443, "int": 443, "proto": "tcp", "role": "HTTPS 标准 CDN 直通建站"})
+    elif container_idx == 2:
+        ports.append({"name": "p8443", "ext": 8443, "int": 8443, "proto": "tcp", "role": "Cloudflare CDN 官方支持 HTTPS (8443)"})
+    elif container_idx == 3:
+        ports.append({"name": "p2053", "ext": 2053, "int": 2053, "proto": "tcp", "role": "Cloudflare CDN 官方支持 HTTPS (2053)"})
+    elif container_idx == 4:
+        ports.append({"name": "p2083", "ext": 2083, "int": 2083, "proto": "tcp", "role": "Cloudflare CDN 官方支持 HTTPS (2083)"})
+        ports.append({"name": "prdp_tcp", "ext": 3389, "int": 3389, "proto": "tcp", "role": "Windows RDP 远程桌面"})
+        ports.append({"name": "prdp_udp", "ext": 3389, "int": 3389, "proto": "udp", "role": "Windows RDP UDP 传输加速"})
+        ports.append({"name": "pweb8088", "ext": 8088, "int": 8088, "proto": "tcp", "role": "Web 桌面 (noVNC)"})
+    else:
+        cf_ports = [2087, 2096]
+        cf_p = cf_ports[(container_idx - 5) % len(cf_ports)]
+        ports.append({"name": f"p{cf_p}", "ext": cf_p, "int": cf_p, "proto": "tcp", "role": f"Cloudflare CDN 官方支持 HTTPS ({cf_p})"})
+
+    # 3X-UI Panel Port
+    panel_port = 54840 + (container_idx - 1)
+    ports.append({"name": f"ppanel_{panel_port}", "ext": panel_port, "int": panel_port, "proto": "tcp", "role": "3X-UI 可视化管理面板"})
+
+    # VLESS REALITY Port
+    reality_port = 20159 + (container_idx - 1)
+    ports.append({"name": f"preality_{reality_port}", "ext": reality_port, "int": reality_port, "proto": "tcp", "role": "VLESS-REALITY-Vision 直连协议"})
+
+    # Hysteria 2 UDP Port
+    hy2_port = 42972 + (container_idx - 1)
+    ports.append({"name": f"phy2_{hy2_port}", "ext": hy2_port, "int": hy2_port, "proto": "udp", "role": "Hysteria 2 UDP 极速双直连"})
+
+    # Dedicated Port Pool (100x1 ~ 100x9)
+    base = 10000 + container_idx * 10
+    pool_roles = {
+        1: "Realm Layer 4 家宽/NAT 透传中继 1",
+        2: "Realm Layer 4 家宽/NAT 透传中继 2",
+        3: "商业住宅代理出口 (SOCKS5/HTTP 入站)",
+        4: "233boy VMess-WS / Trojan 极高兼容协议",
+        5: "预留扩展端口 (FastAPI / Web 应用)",
+        6: "预留扩展端口 (MySQL / Redis / 数据库)",
+        7: "预留扩展端口 (Docker 服务 / API)",
+        8: "预留扩展端口 (自定义业务 1)",
+        9: "预留扩展端口 (自定义业务 2)",
+    }
+    for offset in range(1, 10):
+        p = base + offset
+        ports.append({"name": f"p{p}", "ext": p, "int": p, "proto": "tcp", "role": pool_roles.get(offset, "预留业务端口")})
+
+    return ports
+
+
 class LXCProvisioner:
     def __init__(self, runner: TargetRunner, bridge_name: str = "lxdbr0",
                  storage_pool: str = "default", image: str = "ubuntu:22.04"):
@@ -207,9 +275,13 @@ fi
     def deploy_container(self, name: str, hostname: str, ssh_port: int,
                          cpu: int = 2, memory_mb: int = 1024, disk_gb: int = 10,
                          custom_pass: Optional[str] = None,
-                         is_primary_proxy: bool = False) -> Dict[str, Any]:
+                         is_primary_proxy: bool = False,
+                         container_idx: int = 1,
+                         prepare_3xui: bool = True) -> Dict[str, Any]:
         """
         Creates and configures an isolated LXC container according to specifications.
+        Pre-installs full VPN/3X-UI prerequisites and maps abundant ports (14-16 ports)
+        for Direct REALITY, Hy2, Cloudflare CDN, Realm relay, and Residential proxies.
         """
         code, stdout, _ = self.runner.run(f"lxc list {name} --format json", check=False)
         existing = json.loads(stdout or "[]")
@@ -249,25 +321,15 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 """
         self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(setup_script)}")
 
-        # Add or update SSH proxy device
-        dev_name = f"ssh{ssh_port}"
-        self.runner.run(f"lxc config device remove {name} {dev_name} 2>/dev/null || true", check=False)
-        self.runner.run(
-            f"lxc config device add {name} {dev_name} proxy "
-            f"listen=tcp:0.0.0.0:{ssh_port} connect=tcp:127.0.0.1:22"
-        )
-
-        # If primary proxy container, map ports 80 and 443 and pre-install prerequisites
-        if is_primary_proxy:
-            self.runner.run("lxc config device add " + name + " p80 proxy listen=tcp:0.0.0.0:80 connect=tcp:127.0.0.1:80 2>/dev/null || true", check=False)
-            self.runner.run("lxc config device add " + name + " p443 proxy listen=tcp:0.0.0.0:443 connect=tcp:127.0.0.1:443 2>/dev/null || true", check=False)
-            self.prepare_3xui_pre_requisites(name)
-
         # Setup clean environment (genuine reporting, clean hostname and MOTD)
         print(f"[*] Configuring clean environment on '{name}'...")
         self.setup_clean_environment(name, hostname=hostname)
 
-        # Fetch container info
+        # Pre-install full 3X-UI / VPN prerequisites on container if prepare_3xui is enabled
+        if prepare_3xui:
+            self.prepare_3xui_pre_requisites(name)
+
+        # Fetch container info (IP address)
         code, stdout, _ = self.runner.run(f"lxc list {name} --format json")
         info = json.loads(stdout)[0]
         ip4 = ""
@@ -280,6 +342,31 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
                     elif addr.get("family") == "inet6" and addr.get("scope") == "global":
                         ip6 = addr.get("address")
 
+        # Map all ports for the container
+        port_defs = get_container_port_definitions(container_idx, ssh_port, is_primary_proxy)
+        print(f"[*] Mapping {len(port_defs)} dedicated ports for container '{name}'...")
+        for p in port_defs:
+            dev = p["name"]
+            proto = p["proto"]
+            ext = p["ext"]
+            target = p["int"]
+            self.runner.run(f"lxc config device remove {name} {dev} 2>/dev/null || true", check=False)
+            if dev.startswith("ssh"):
+                self.runner.run(
+                    f"lxc config device add {name} {dev} proxy "
+                    f"listen={proto}:0.0.0.0:{ext} connect={proto}:127.0.0.1:{target}",
+                    check=False
+                )
+            else:
+                conn_target = f"{ip4}:{target}" if ip4 else f"127.0.0.1:{target}"
+                self.runner.run(
+                    f"lxc config device add {name} {dev} proxy "
+                    f"listen={proto}:0.0.0.0:{ext} connect={proto}:{conn_target} nat=true 2>/dev/null || "
+                    f"lxc config device add {name} {dev} proxy "
+                    f"listen={proto}:0.0.0.0:{ext} connect={proto}:127.0.0.1:{target}",
+                    check=False
+                )
+
         return {
             "name": name,
             "hostname": hostname,
@@ -289,7 +376,8 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
             "ssh_port": ssh_port,
             "user": "root",
             "password": password,
-            "is_3xui_ready": is_primary_proxy,
+            "is_3xui_ready": prepare_3xui,
+            "ports": port_defs,
             "specs": {
                 "cpu_cores": cpu,
                 "memory": f"{memory_mb}MB",

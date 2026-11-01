@@ -47,6 +47,30 @@ class TestVPSLXCCLI(unittest.TestCase):
         self.assertIn("2300", res.stdout)
         self.assertIn("2301", res.stdout)
 
+    def test_container_port_definitions(self):
+        from scripts.provision import get_container_port_definitions
+        c1_ports = get_container_port_definitions(1, 2201, True)
+        c1_exts = [p["ext"] for p in c1_ports]
+        self.assertIn(2201, c1_exts)
+        self.assertIn(80, c1_exts)
+        self.assertIn(443, c1_exts)
+        self.assertIn(54840, c1_exts)
+        self.assertIn(20159, c1_exts)
+        self.assertIn(42972, c1_exts)
+        self.assertIn(10011, c1_exts)
+        self.assertIn(10019, c1_exts)
+
+        c2_ports = get_container_port_definitions(2, 2202, False)
+        c2_exts = [p["ext"] for p in c2_ports]
+        self.assertIn(2202, c2_exts)
+        self.assertIn(8443, c2_exts)
+        self.assertIn(54841, c2_exts)
+        self.assertIn(20160, c2_exts)
+        self.assertIn(42973, c2_exts)
+        self.assertIn(10021, c2_exts)
+        self.assertIn(10029, c2_exts)
+
 
 if __name__ == "__main__":
     unittest.main()
+

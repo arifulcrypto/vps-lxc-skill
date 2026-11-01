@@ -187,7 +187,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 cpu=specs["cpu"],
                 memory_mb=specs["memory_mb"],
                 disk_gb=specs["disk_gb"],
-                is_primary_proxy=is_first
+                is_primary_proxy=is_first,
+                container_idx=idx + 1,
+                prepare_3xui=cfg.get("prepare_3xui", True)
             )
             deployed.append(c_info)
             print(f"[+] Container '{name}' ready (IP: {c_info['ipv4']}, Port: {port})")
@@ -195,6 +197,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("[*] Phase 6: Generating reports and credential files...")
         paths = save_artifacts(cfg["output_dir"], ip or "localhost", deployed)
         print(f"[+] Credentials & Ports matrix saved to: {paths['credentials_md']}")
+        print(f"[+] Relay & Residential Exit guide saved to: {paths['relay_md']}")
         print(f"[+] Cloudflare Origin Rules saved to: {paths['cloudflare_md']}")
         print(f"[+] Cluster README saved to: {paths['readme_md']}")
         print(f"[+] JSON result saved to: {paths['result_json']}")

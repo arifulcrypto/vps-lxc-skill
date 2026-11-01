@@ -71,14 +71,15 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
 └──────────────────┘   └──────────────────┘                         └──────────────────┘   └──────────────────┘
 ```
 
-### Complete Port Allocation Matrix
+### Complete Port Allocation Matrix (All Containers Full-VPN & Relay Ready)
 
-| Container ID | Internal IP | SSH Port | Cloudflare HTTPS CDN Port | Proxy & Core Service Ports | Extra Pre-Mapped Port Pool | Primary Role |
-| :--- | :--- | :---: | :---: | :--- | :--- | :--- |
-| **`c1-proxy`** | `10.0.43.10` | `2201` | **`80, 443`** (Primary) | `54840` (3X-UI), `20159` (REALITY), `42972` (HY2 UDP) | `10011`, `10012` | Primary Proxy & Web Gateway |
-| **`c2-app`** | `10.0.43.20` | `2202` | **`8443`** | `54841` (3X-UI), `20160` (REALITY), `42973` (HY2 UDP) | `10021`, `10022` | Secondary Proxy & Web App |
-| **`c3-backup`**| `10.0.43.30` | `2203` | **`2053`** | `54842` (Panel), `20161` (REALITY), `42974` (HY2 UDP) | `10031`, `10032` | Standby Microservice & Backup |
-| **`c4-desktop`**| `10.0.43.40` | `2204` | **`2083`** | **`3389` (Windows MSTSC RDP Direct)**, `8088` (Web) | `10041`, `10042` | Desktop (XFCE4+XRDP+Chrome) & Web |
+| Container ID | Internal IP | SSH Port | Cloudflare HTTPS CDN Port | 3X-UI & Direct Proxies | Realm Relays & Residential | Extra Port Pool | Primary Role |
+| :--- | :--- | :---: | :---: | :--- | :--- | :--- | :--- |
+| **`c1-proxy`** | `10.0.43.10` | `2201` | **`80, 443`** (Primary) | `54840` (3X-UI), `20159` (REALITY), `42972` (HY2 UDP) | `10011-12` (Realm), `10013` (Res), `10014` (233boy) | `10015~10019` | Primary Gateway & Multi-Node |
+| **`c2-app`** | `10.0.43.20` | `2202` | **`8443`** | `54841` (3X-UI), `20160` (REALITY), `42973` (HY2 UDP) | `10021-22` (Realm), `10023` (Res), `10024` (233boy) | `10025~10029` | Full Proxy Node & Web App |
+| **`c3-backup`**| `10.0.43.30` | `2203` | **`2053`** | `54842` (3X-UI), `20161` (REALITY), `42974` (HY2 UDP) | `10031-32` (Realm), `10033` (Res), `10034` (233boy) | `10035~10039` | Standby Microservice & Relay |
+| **`c4-desktop`**| `10.0.43.40` | `2204` | **`2083`** | `54843` (3X-UI), `20162` (REALITY), `42975` (HY2 UDP) | `10041-42` (Realm), `10043` (Res), `10044` (233boy) | `10045~10049`, `3389` (RDP), `8088` | Desktop & Full Proxy Node |
+
 
 ---
 
