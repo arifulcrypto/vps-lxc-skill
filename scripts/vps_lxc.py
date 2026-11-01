@@ -69,6 +69,9 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                         help="Compare the host with the recommendations and exit without changing anything")
     parser.add_argument("--install-boot-check", action="store_true", default=None,
                         help="Add the boot self-check for the containers running now, and change nothing else")
+    parser.add_argument("--traffic-limit-gb", type=int,
+                        help="Monthly traffic allowance. Installs the guard: warn at 80%%, slow down at 90%% and 98%%")
+    parser.add_argument("--traffic-reset-day", type=int, help="Day of the month the allowance resets (default: 1)")
     parser.add_argument("--first-index", type=int,
                         help="Matrix position of the first container, to add containers to a host (default: 1)")
     parser.add_argument("--https-port", type=int, help="Public HTTPS port for a single container (default: from the matrix)")
@@ -186,6 +189,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"    Last boot check: {provisioner.boot_status() or 'not installed'}")
         return 1 if any(c["level"] == "fail" for c in checks) else 0
 
+    if cfg.get("traffic_limit_gb") and (cfg.get("install_boot_check") or not cfg.get("names") and not cfg.get("count")):
+        try:
+            runner.test_connection()
+            iface = provisioner.install_traffic_guard(int(cfg["traffic_limit_gb"]), int(cfg.get("traffic_reset_day") or 1))
+        except (RemoteError, ValueError) as e:
+            print(f"[-] Could not install the traffic guard: {e}", file=sys.stderr)
+            return 2
+        print(f"[+] Traffic guard installed on {iface}: {cfg['traffic_limit_gb']} GB per month")
+        if not cfg.get("install_boot_check"):
+            return 0
+
     if cfg.get("install_boot_check"):
         try:
             runner.test_connection()
@@ -263,6 +277,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("[*] Installing the boot self-check...")
         provisioner.install_boot_check([{"name": c["name"], "ip": host_ip, "ssh_port": c["ssh_port"], "units": []}
                                         for c in deployed])
+
+        if cfg.get("traffic_limit_gb"):
+            provisioner.install_traffic_guard(int(cfg["traffic_limit_gb"]), int(cfg.get("traffic_reset_day") or 1))
 
         print("[*] Phase 6: Generating reports and credential files...")
         paths = save_artifacts(cfg["output_dir"], ip or "localhost", deployed, host_state, provisioner.warnings)

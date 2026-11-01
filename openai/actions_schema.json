@@ -129,6 +129,16 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Add the boot self-check for running containers and change nothing else"
+                  },
+                  "traffic_limit_gb": {
+                    "type": "integer",
+                    "description": "Monthly traffic allowance. Installs the traffic guard"
+                  },
+                  "traffic_reset_day": {
+                    "type": "integer",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 28
                   }
                 },
                 "required": [

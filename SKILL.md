@@ -14,7 +14,7 @@ description: >-
 
 ---
 
-Before setting up a host, read [Host Requirements](docs/host-requirements.md) or run `--check-host`: recommended OS, LXD version, machine sizes, network settings and tested software versions.
+Before setting up a host, read [Host Requirements](docs/host-requirements.md) or run `--check-host`: recommended OS with measured resource use, machine sizes, limits and network settings. [Software Versions](docs/software-versions.md) lists tested versions and official downloads.
 
 ## 1. Overview & Capabilities
 
@@ -127,6 +127,8 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--rotate-passwords` | flag | `false` | Generate new root passwords for existing containers |
 | `--check-host` | flag | `false` | Compare the host with the recommendations and change nothing |
 | `--install-boot-check` | flag | `false` | Add the boot self-check for running containers and change nothing else |
+| `--traffic-limit-gb` | int | — | Monthly allowance. Installs the traffic guard, alone or during deployment |
+| `--traffic-reset-day` | int | `1` | Day of the month the allowance resets |
 | `--first-index` | int | `1` | Matrix position of the first container, for adding containers to a host |
 | `--https-port` | int | from matrix | Public HTTPS port for a single container |
 | `--host-tuning` | bool | `true` | Set BBR and UDP buffers on the host. Use `--no-host-tuning` on hosts with live services |

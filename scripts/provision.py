@@ -13,7 +13,7 @@ import shlex
 import string
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from scripts import boot_check
+from scripts import boot_check, traffic_guard
 from scripts.remote import RemoteError, TargetRunner
 
 PASSWORD_CHARS = string.ascii_letters + string.digits + "@#%="
@@ -225,15 +225,18 @@ def grade_host(facts: Dict[str, str], count: int = 1) -> List[Dict[str, str]]:
     os_id, version = facts.get("OS_ID", ""), facts.get("OS_VERSION", "")
     current = RECOMMENDED_OS.get(os_id)
     if current is None:
-        add("warn", "Operating system", f"{os_id} {version}", "Use Ubuntu 24.04 LTS or Debian 12 or 13.")
+        add("warn", "Operating system", f"{os_id} {version}", "Use Debian 13 or Ubuntu 24.04 LTS.")
     elif _version(version) < _version(current[0]):
-        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Ubuntu 24.04 LTS or Debian 12 or 13.")
+        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Debian 13 or Ubuntu 24.04 LTS.")
     else:
         add("ok", "Operating system", f"{os_id} {version}")
 
     kernel = facts.get("KERNEL", "")
     add("ok" if _version(kernel) >= MIN_KERNEL else "warn", "Kernel", kernel,
         "" if _version(kernel) >= MIN_KERNEL else "Use 5.15 or newer for current BBR and cgroup behavior.")
+
+    if facts.get("BBR") == "no":
+        add("warn", "BBR", "not in this kernel", "Install a full kernel. Slim cloud kernels can leave BBR out.")
 
     lxd = facts.get("LXD", "")
     if not lxd:
@@ -375,17 +378,25 @@ class LXCProvisioner:
     def install_boot_check(self, containers: Sequence[Dict[str, Any]]) -> None:
         """Enable the self-check for these containers and whichever watched host services are running."""
         entries = []
+        upstreams: List[Dict[str, Any]] = []
         for c in containers:
             _, stdout, _ = self.runner.run(boot_check.active_units_script(c["name"]), check=False)
             entries.append(dict(c, units=boot_check.clean_units(stdout.split())))
+            _, stdout, _ = self.runner.run(boot_check.upstreams_script(c["name"]), check=False)
+            upstreams += boot_check.parse_upstreams(c["name"], stdout)
         units = " ".join(boot_check.WATCHED_UNITS)
         _, stdout, _ = self.runner.run(f"for u in {units}; do systemctl is-active --quiet $u && echo $u; done", check=False)
-        self.runner.run(boot_check.install_script(boot_check.clean_units(stdout.split()), entries))
+        self.runner.run(boot_check.install_script(boot_check.clean_units(stdout.split()), entries, upstreams))
 
     def adopt_running_containers(self, host_ip: str) -> List[Dict[str, Any]]:
         """Containers that are running now, so an existing cluster gets the self-check unchanged."""
         return [boot_check.discover_container(inst, host_ip) for inst in self.query("/1.0/instances?recursion=1")
                 if inst.get("status") == "Running"]
+
+    def install_traffic_guard(self, limit_gb: int, reset_day: int = 1) -> str:
+        _, iface, _ = self.runner.run("ip -4 route show default | awk '{print $5; exit}'")
+        self.runner.run(traffic_guard.install_script(iface.strip(), limit_gb, reset_day), timeout=300)
+        return iface.strip()
 
     def boot_status(self) -> str:
         _, stdout, _ = self.runner.run(f"cat {boot_check.STATUS} 2>/dev/null || true", check=False)
@@ -403,6 +414,11 @@ echo "SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')"
 d=/var/snap/lxd/common/lxd; [ -d "$d" ] || d=/var/lib/lxd; [ -d "$d" ] || d=/
 echo "DISK_FREE_GB=$(df -BG --output=avail "$d" | tail -n1 | tr -dc 0-9)"
 echo "LXD=$(command -v lxd >/dev/null 2>&1 && lxd version 2>/dev/null | head -n1)"
+if grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null || modprobe -n tcp_bbr 2>/dev/null; then
+    echo "BBR=yes"
+else
+    echo "BBR=no"
+fi
 """
         _, stdout, _ = self.runner.run(script, check=False)
         return parse_kv(stdout)

@@ -448,3 +448,7 @@ def test_debian_images_get_an_ssh_server_before_it_is_configured():
 
 def test_deployer_config_includes_the_exit_port():
     assert deployer_config("203.0.113.10", 2, 2202, "pw")["exit_port"] == 10023
+
+
+def test_kernel_without_bbr_is_reported():
+    assert levels({"BBR": "no"})["BBR"] == "warn"
