@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """The boot self-check is real bash: run it with fake lxc, lxd and systemctl on PATH."""
 import os
+import shlex
 import stat
 import subprocess
 
 import pytest
 
 from scripts import boot_check
-from scripts.boot_check import discover_container, install_script, render_config
+from scripts.boot_check import discover_container, install_script, parse_upstreams, render_config, upstreams_script
 
 
 FAKE_LXC = r"""#!/bin/bash
@@ -133,3 +134,23 @@ def test_existing_cluster_ssh_forward_is_discovered():
         "ssh2201": {"type": "proxy", "listen": "tcp:0.0.0.0:2201", "connect": "tcp:127.0.0.1:22"},
         "p8443": {"type": "proxy", "listen": "tcp:203.0.113.10:8443"}}}
     assert discover_container(inst, "203.0.113.10") == {"name": "c1-proxy", "ip": "127.0.0.1", "ssh_port": 2201, "units": []}
+
+
+def test_upstream_failure_is_noted_without_failing_the_boot(box):
+    ready(box)
+    with open(box.path / "conf", "a") as f:
+        f.write("upstream c3-exit1 198.51.100.7 24446\n")
+    (box.path / "bin" / "timeout").write_text('#!/bin/bash\ncase "$*" in *198.51.100.7*) exit 1;; esac\nexit 0\n')
+    assert box.run().returncode == 0
+    assert "upstream-down=c3-exit1" in (box.path / "status").read_text()
+
+
+def test_upstreams_are_parsed_safely():
+    found = parse_upstreams("c3", "198.51.100.7 24446\nbad;host 1\nnoport\n")
+    assert found == [{"name": "c3-exit1", "host": "198.51.100.7", "port": 24446}]
+
+
+def test_upstream_discovery_code_compiles():
+    script = upstreams_script("c3")
+    code = shlex.split(script)[6]
+    compile(code, "upstreams", "exec")

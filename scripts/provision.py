@@ -375,12 +375,15 @@ class LXCProvisioner:
     def install_boot_check(self, containers: Sequence[Dict[str, Any]]) -> None:
         """Enable the self-check for these containers and whichever watched host services are running."""
         entries = []
+        upstreams: List[Dict[str, Any]] = []
         for c in containers:
             _, stdout, _ = self.runner.run(boot_check.active_units_script(c["name"]), check=False)
             entries.append(dict(c, units=boot_check.clean_units(stdout.split())))
+            _, stdout, _ = self.runner.run(boot_check.upstreams_script(c["name"]), check=False)
+            upstreams += boot_check.parse_upstreams(c["name"], stdout)
         units = " ".join(boot_check.WATCHED_UNITS)
         _, stdout, _ = self.runner.run(f"for u in {units}; do systemctl is-active --quiet $u && echo $u; done", check=False)
-        self.runner.run(boot_check.install_script(boot_check.clean_units(stdout.split()), entries))
+        self.runner.run(boot_check.install_script(boot_check.clean_units(stdout.split()), entries, upstreams))
 
     def adopt_running_containers(self, host_ip: str) -> List[Dict[str, Any]]:
         """Containers that are running now, so an existing cluster gets the self-check unchanged."""

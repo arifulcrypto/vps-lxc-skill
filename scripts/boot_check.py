@@ -77,6 +77,15 @@ check_container() {
     fi
 }
 
+# Exits outside this host can fail on their own, so they are reported, not treated as a local fault.
+check_upstreams() {
+    upstream_down=()
+    while read -r kind first second third rest; do
+        [ "$kind" = upstream ] || continue
+        timeout 6 bash -c "exec 3<>/dev/tcp/$second/$third" 2>/dev/null || upstream_down+=("$first")
+    done < "$CONFIG"
+}
+
 run_checks() {
     problems=()
     while read -r kind first second third rest; do
@@ -98,8 +107,11 @@ fi
 for attempt in $(seq 1 "$ATTEMPTS"); do
     run_checks
     if [ ${#problems[@]} -eq 0 ]; then
-        report OK "attempt $attempt"
-        log "OK after attempt $attempt"
+        check_upstreams
+        note=""
+        [ ${#upstream_down[@]} -eq 0 ] || note=" upstream-down=${upstream_down[*]}"
+        report OK "attempt $attempt$note"
+        log "OK after attempt $attempt$note"
         exit 0
     fi
     log "attempt $attempt: ${problems[*]}"
@@ -133,8 +145,10 @@ WantedBy=timers.target
 """
 
 
-def render_config(host_units: Sequence[str], containers: Sequence[Dict[str, Any]]) -> str:
+def render_config(host_units: Sequence[str], containers: Sequence[Dict[str, Any]],
+                  upstreams: Sequence[Dict[str, Any]] = ()) -> str:
     lines = [f"host {unit}" for unit in host_units]
+    lines += [f"upstream {u['name']} {u['host']} {int(u['port'])}" for u in upstreams]
     for c in containers:
         lines.append(" ".join(["container", c["name"], c["ip"], str(c["ssh_port"]), *c["units"]]))
     for token in " ".join(lines).split():
@@ -143,14 +157,15 @@ def render_config(host_units: Sequence[str], containers: Sequence[Dict[str, Any]
     return "\n".join(lines) + "\n"
 
 
-def install_script(host_units: Sequence[str], containers: Sequence[Dict[str, Any]]) -> str:
+def install_script(host_units: Sequence[str], containers: Sequence[Dict[str, Any]],
+                   upstreams: Sequence[Dict[str, Any]] = ()) -> str:
     """Install the check and enable it. Running containers are also set to start with LXD."""
     autostart = "\n".join(f"lxc config set {shlex.quote(c['name'])} boot.autostart true </dev/null"
                           for c in containers)
     return f"""set -e
 mkdir -p /etc/vps-lxc /var/lib/vps-lxc
 cat > {CONFIG} <<'VPS_LXC_EOF'
-{render_config(host_units, containers)}VPS_LXC_EOF
+{render_config(host_units, containers, upstreams)}VPS_LXC_EOF
 cat > {SCRIPT} <<'VPS_LXC_EOF'
 {CHECK_SCRIPT}VPS_LXC_EOF
 chmod 755 {SCRIPT}
@@ -169,6 +184,34 @@ def active_units_script(name: str) -> str:
     units = " ".join(WATCHED_UNITS)
     return (f"lxc exec {shlex.quote(name)} -- sh -c 'for u in {units}; do "
             "systemctl is-active --quiet $u && echo $u; done' </dev/null")
+
+
+def upstreams_script(name: str) -> str:
+    """Relay targets and proxy exits a container depends on, one `host port` per line."""
+    code = ("import json,re\n"
+            "try:\n"
+            "    t=open('/etc/realm/config.toml').read()\n"
+            "    [print(h,p) for h,p in re.findall(r'remote *= *\"([^\":]+):(\\d+)\"',t)]\n"
+            "except OSError: pass\n"
+            "try:\n"
+            "    c=json.load(open('/usr/local/x-ui/bin/config.json'))\n"
+            "    seen=set()\n"
+            "    for o in c.get('outbounds',[]):\n"
+            "        if o.get('protocol') in ('socks','http','vless','vmess','trojan'):\n"
+            "            s=o.get('settings',{}); v=(s.get('servers') or s.get('vnext') or [s])[0]\n"
+            "            k=(v.get('address'),v.get('port'))\n"
+            "            if k[0] and k not in seen: seen.add(k); print(*k)\n"
+            "except (OSError,ValueError): pass\n")
+    return f"lxc exec {shlex.quote(name)} -- python3 -c {shlex.quote(code)} </dev/null"
+
+
+def parse_upstreams(name: str, stdout: str) -> List[Dict[str, Any]]:
+    found = []
+    for i, line in enumerate(stdout.splitlines()):
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit() and re.match(r"^[A-Za-z0-9.-]+$", parts[0]):
+            found.append({"name": f"{name}-exit{i + 1}", "host": parts[0], "port": int(parts[1])})
+    return found
 
 
 def discover_container(inst: Dict[str, Any], host_ip: str) -> Dict[str, Any]:

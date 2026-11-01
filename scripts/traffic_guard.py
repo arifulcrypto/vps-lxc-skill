@@ -64,7 +64,9 @@ else
 fi
 apply_rate "$rate"
 previous=$(cut -d' ' -f1 "$STATUS" 2>/dev/null)
-echo "$state $(date -Is) used=$((bytes / 1000000000))GB limit=${LIMIT_GB}GB percent=$percent rate_mbit=$rate" > "$STATUS"
+disk=$(df --output=pcent / 2>/dev/null | tail -n1 | tr -dc 0-9)
+echo "$state $(date -Is) used=$((bytes / 1000000000))GB limit=${LIMIT_GB}GB percent=$percent rate_mbit=$rate disk=${disk:-0}%" > "$STATUS"
+[ "${disk:-0}" -lt "${DISK_WARN_PCT:-85}" ] || logger -t vps-lxc-traffic "disk is ${disk}% full"
 [ "$state" = "$previous" ] || logger -t vps-lxc-traffic "traffic state $previous -> $state ($percent%)"
 """
 
