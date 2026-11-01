@@ -11,7 +11,7 @@
 ---
 
 
-Before setting up a host, read [Host Requirements](docs/host-requirements.md) or run `--check-host`: recommended OS, LXD version, machine sizes, network settings and tested software versions.
+Before setting up a host, read [Host Requirements](docs/host-requirements.md) or run `--check-host`: recommended OS with measured resource use, machine sizes, limits and network settings. [Software Versions](docs/software-versions.md) lists tested versions and official downloads.
 
 ## Key Features
 

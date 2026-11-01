@@ -225,15 +225,18 @@ def grade_host(facts: Dict[str, str], count: int = 1) -> List[Dict[str, str]]:
     os_id, version = facts.get("OS_ID", ""), facts.get("OS_VERSION", "")
     current = RECOMMENDED_OS.get(os_id)
     if current is None:
-        add("warn", "Operating system", f"{os_id} {version}", "Use Ubuntu 24.04 LTS or Debian 12 or 13.")
+        add("warn", "Operating system", f"{os_id} {version}", "Use Debian 13 or Ubuntu 24.04 LTS.")
     elif _version(version) < _version(current[0]):
-        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Ubuntu 24.04 LTS or Debian 12 or 13.")
+        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Debian 13 or Ubuntu 24.04 LTS.")
     else:
         add("ok", "Operating system", f"{os_id} {version}")
 
     kernel = facts.get("KERNEL", "")
     add("ok" if _version(kernel) >= MIN_KERNEL else "warn", "Kernel", kernel,
         "" if _version(kernel) >= MIN_KERNEL else "Use 5.15 or newer for current BBR and cgroup behavior.")
+
+    if facts.get("BBR") == "no":
+        add("warn", "BBR", "not in this kernel", "Install a full kernel. Slim cloud kernels can leave BBR out.")
 
     lxd = facts.get("LXD", "")
     if not lxd:
@@ -411,6 +414,11 @@ echo "SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')"
 d=/var/snap/lxd/common/lxd; [ -d "$d" ] || d=/var/lib/lxd; [ -d "$d" ] || d=/
 echo "DISK_FREE_GB=$(df -BG --output=avail "$d" | tail -n1 | tr -dc 0-9)"
 echo "LXD=$(command -v lxd >/dev/null 2>&1 && lxd version 2>/dev/null | head -n1)"
+if grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null || modprobe -n tcp_bbr 2>/dev/null; then
+    echo "BBR=yes"
+else
+    echo "BBR=no"
+fi
 """
         _, stdout, _ = self.runner.run(script, check=False)
         return parse_kv(stdout)

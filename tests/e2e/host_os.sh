@@ -48,6 +48,9 @@ in_vm cat /var/lib/vps-lxc/boot-status
 in_vm grep -q '^OK ' /var/lib/vps-lxc/boot-status
 in_vm sh -c 'PATH=$PATH:/snap/bin lxc list -c ns --format csv'
 test "$(in_vm sh -c 'PATH=$PATH:/snap/bin lxc list -c s --format csv | grep -c RUNNING')" = 2
-test "$(in_vm sh -c 'PATH=$PATH:/snap/bin lxc exec vps-01 -- sysctl -n net.ipv4.tcp_congestion_control')" = bbr
+# Slim cloud kernels can leave BBR out, and --check-host reports that.
+if in_vm grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control; then
+    test "$(in_vm sh -c 'PATH=$PATH:/snap/bin lxc exec vps-01 -- sysctl -n net.ipv4.tcp_congestion_control')" = bbr
+fi
 measure after-reboot
 echo "All host checks passed on $IMAGE"
