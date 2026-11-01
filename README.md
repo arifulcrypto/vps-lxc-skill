@@ -10,6 +10,9 @@
 
 ---
 
+
+Before setting up a host, read [Host Requirements](docs/host-requirements.md) or run `--check-host`: recommended OS, LXD version, machine sizes, network settings and tested software versions.
+
 ## Key Features
 
 - **Automated Host Setup**: Auto-detects and installs LXD, configures a `dir` storage pool by default, and provisions `lxdbr0` managed bridge with IPv4/IPv6 NAT out of the box.
