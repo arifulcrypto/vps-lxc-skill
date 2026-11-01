@@ -125,4 +125,5 @@ MIT License. 详见 [LICENSE](LICENSE)。
 - **宿主机配置。** BBR 和 16 MB UDP 缓冲区在宿主机设置，因为容器无法自行设置。已启用的 UFW 或 firewalld 会添加网桥与计划端口规则，Docker 的 `FORWARD DROP` 策略由一个持久化单元处理。
 - **如实报告。** `disk_quota_enforced` 表示容器内是否真实看到磁盘限制。默认 `dir` 存储池仅在启用项目配额的 ext4/XFS 上生效，需要硬限制时请在新存储池上使用 `--storage-driver btrfs`。`c4-desktop` 等名称仅为示例：工具只预留桌面端口，不安装桌面环境。
 - **配合 vps-deploy-skill。** 每个容器都会生成 `deploy_<name>.json`，也可在部署工具中使用 `--from-lxc result.json --container <name>`。次级容器没有公网 80 端口，配置域名时使用 `cert_mode: dns-01`。
+- **在已有业务的宿主机上新增容器。** 使用 `--first-index N --https-port P --no-host-tuning` 添加单个容器，不占用靠前的位置。端口检查同时覆盖监听程序和其他容器的 NAT 转发（这些转发没有监听套接字）。已在 LXD 4.0.15 的真实宿主机上验证。
 - **自动安装 LXD** 支持 Ubuntu 和 Debian，其他系统请先自行安装 LXD。

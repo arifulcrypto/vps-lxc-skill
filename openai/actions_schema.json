@@ -103,6 +103,22 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Generate new root passwords for existing containers"
+                  },
+                  "first_index": {
+                    "type": "integer",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 6,
+                    "description": "Matrix position of the first container"
+                  },
+                  "https_port": {
+                    "type": "integer",
+                    "description": "Public HTTPS port for a single container"
+                  },
+                  "host_tuning": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Set BBR and UDP buffers on the host"
                   }
                 },
                 "required": [

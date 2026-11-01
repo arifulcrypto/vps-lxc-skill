@@ -128,8 +128,12 @@ def render_markdown_credentials(host_ip: str, containers: List[Dict[str, Any]]) 
 
 
 def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) -> str:
-    relay_name, relay_port = containers[-1]["name"], 10000 + len(containers) * 10 + 1
-    res_port = 10000 + len(containers) * 10 + 3
+    def pool_base(idx: int, container: Dict[str, Any]) -> int:
+        vmess = container.get("deployer_config", {}).get("vmess_port")
+        return vmess - 4 if vmess else 10000 + idx * 10
+
+    relay_name, relay_port = containers[-1]["name"], pool_base(len(containers), containers[-1]) + 1
+    res_port = relay_port + 2
     lines = [
         f"# Relay & Residential Exit Extension Runbook ({host_ip})",
         "",
@@ -144,7 +148,7 @@ def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) 
     ]
 
     for idx, c in enumerate(containers, start=1):
-        base = 10000 + idx * 10
+        base = pool_base(idx, c)
         lines.append(
             f"| `{c['name']}` | **`{base + 1}`** | **`{base + 2}`** | **`{base + 3}`** | **`{base + 4}`** |"
         )

@@ -45,7 +45,8 @@ def generate_secure_password(length: int = 16) -> str:
     return "".join(pwd)
 
 
-def get_container_port_definitions(container_idx: int, ssh_port: int, is_primary: bool = False) -> List[Dict[str, Any]]:
+def get_container_port_definitions(container_idx: int, ssh_port: int, is_primary: bool = False,
+                                   https_override: Optional[int] = None) -> List[Dict[str, Any]]:
     """
     Returns the comprehensive, multi-protocol port forwarding matrix for a container.
     Guarantees every container (c1-c4) has abundant ports for:
@@ -64,7 +65,14 @@ def get_container_port_definitions(container_idx: int, ssh_port: int, is_primary
     ]
 
     # Cloudflare CDN Web / HTTPS Port
-    if container_idx == 1:
+    if https_override:
+        ports.append({"name": f"p{https_override}", "ext": https_override, "int": https_override, "proto": "tcp",
+                      "role": f"Cloudflare CDN HTTPS ({https_override})"})
+        if container_idx == 4:
+            ports.append({"name": "prdp_tcp", "ext": 3389, "int": 3389, "proto": "tcp", "role": "Windows RDP 远程桌面"})
+            ports.append({"name": "prdp_udp", "ext": 3389, "int": 3389, "proto": "udp", "role": "Windows RDP UDP 传输加速"})
+            ports.append({"name": "pweb8088", "ext": 8088, "int": 8088, "proto": "tcp", "role": "Web 桌面 (noVNC)"})
+    elif container_idx == 1:
         ports.append({"name": "p80", "ext": 80, "int": 80, "proto": "tcp", "role": "HTTP Web / ACME 验证"})
         ports.append({"name": "p443", "ext": 443, "int": 443, "proto": "tcp", "role": "HTTPS 标准 CDN 直通建站"})
     elif container_idx == 2:
@@ -117,7 +125,8 @@ def https_port(container_idx: int) -> int:
     return {1: 443, 2: 8443, 3: 2053, 4: 2083, 5: 2087, 6: 2096}[container_idx]
 
 
-def deployer_config(host_ip: str, idx: int, ssh_port: int, password: Optional[str]) -> Dict[str, Any]:
+def deployer_config(host_ip: str, idx: int, ssh_port: int, password: Optional[str],
+                    https_override: Optional[int] = None) -> Dict[str, Any]:
     """Per-container input that vps-deploy-skill accepts directly (`--from-lxc` or `--config`)."""
     base = 10000 + idx * 10
     cfg: Dict[str, Any] = {
@@ -127,12 +136,12 @@ def deployer_config(host_ip: str, idx: int, ssh_port: int, password: Optional[st
         "panel_port": 54840 + idx - 1,
         "reality_port": 20159 + idx - 1,
         "hy2_port": 42972 + idx - 1,
-        "https_port": https_port(idx),
+        "https_port": https_override or https_port(idx),
         "web_backend_port": WEB_BACKEND_PORT,
         "sub_port": base + 5,
         "vmess_port": base + 4,
         "trojan_port": base + 6,
-        "cert_mode": "http-01" if idx == 1 else "dns-01",
+        "cert_mode": "http-01" if idx == 1 and not https_override else "dns-01",
     }
     if password:
         cfg["ssh_pass"] = password
@@ -152,8 +161,14 @@ def validate_plan(cfg: Dict[str, Any]) -> Dict[str, Any]:
     else:
         count = int(count) if count is not None else 2
         names = [f"vps-{i:02d}" for i in range(1, count + 1)]
+    first = int(cfg.get("first_index") or 1)
     if not 1 <= count <= MAX_CONTAINERS:
         raise RemoteError(f"Container count must be between 1 and {MAX_CONTAINERS}, got {count}.")
+    if first < 1 or first + count - 1 > MAX_CONTAINERS:
+        raise RemoteError(f"first_index {first} with {count} container(s) goes past position {MAX_CONTAINERS}.")
+    override = int(cfg["https_port"]) if cfg.get("https_port") else None
+    if override and count != 1:
+        raise RemoteError("https_port applies to a single container: use it with count 1.")
     for name in names:
         if not NAME_RE.match(name):
             raise RemoteError(f"Invalid container name '{name}': use letters, digits and '-', starting with a letter.")
@@ -165,8 +180,9 @@ def validate_plan(cfg: Dict[str, Any]) -> Dict[str, Any]:
             raise RemoteError(f"{key} must be at least {minimum}, got {cfg[key]}.")
 
     base = int(cfg["ssh_base_port"])
-    ssh_ports = [base + i for i in range(count)]
-    matrix = [get_container_port_definitions(i + 1, ssh_ports[i], i == 0) for i in range(count)]
+    indices = [first + i for i in range(count)]
+    ssh_ports = [base + idx - 1 for idx in indices]
+    matrix = [get_container_port_definitions(idx, ssh_ports[i], idx == 1, override) for i, idx in enumerate(indices)]
     seen: Dict[Tuple[int, str], str] = {}
     host_ssh = int(cfg.get("ssh_port") or 22)
     for name, defs in zip(names, matrix):
@@ -179,7 +195,8 @@ def validate_plan(cfg: Dict[str, Any]) -> Dict[str, Any]:
             seen[key] = name
             if p["ext"] == host_ssh and p["proto"] == "tcp":
                 raise RemoteError(f"Port {p['ext']} for {name} collides with the host SSH port.")
-    return {"names": names, "count": count, "ssh_ports": ssh_ports, "matrix": matrix}
+    return {"names": names, "count": count, "ssh_ports": ssh_ports, "matrix": matrix, "indices": indices,
+            "https_override": override}
 
 
 def parse_size_mb(value: str) -> int:
@@ -286,7 +303,9 @@ class LXCProvisioner:
         """Read the LXD API. A failed read raises, so it can never look like an empty result."""
         code, stdout, stderr = self.runner.run(f"lxc query {shlex.quote(path)}", check=False)
         if code != 0:
-            if missing_ok and "not found" in f"{stdout} {stderr}".lower():
+            message = f"{stdout} {stderr}".lower()
+            # LXD 4.0 says "No such object"; 5.x and later say "not found".
+            if missing_ok and ("not found" in message or "no such object" in message):
                 return None
             raise RemoteError(f"LXD query failed for {path}: {stderr or stdout}")
         try:
@@ -375,8 +394,27 @@ class LXCProvisioner:
         except ValueError as e:
             raise RemoteError("Could not detect the host IPv4 address; pass --listen-ip.") from e
 
-    def preflight_host_ports(self, planned: Sequence[Dict[str, Any]]) -> None:
-        """Refuse before any change when another program already owns a planned host port."""
+    def nat_conflicts(self, wanted: set, own_names: Sequence[str]) -> List[str]:
+        """NAT forwards of other containers have no listening socket, so `ss` can't see them."""
+        conflicts = []
+        for inst in self.query("/1.0/instances?recursion=1"):
+            if inst.get("name") in own_names:
+                continue
+            for dev, conf in (inst.get("devices") or {}).items():
+                if conf.get("type") != "proxy":
+                    continue
+                proto, _, rest = conf.get("listen", "").partition(":")
+                address, _, ports = rest.rpartition(":")
+                if address.startswith("["):
+                    continue  # IPv6 listeners do not collide with the IPv4 forwards planned here
+                for item in ports.split(","):
+                    low, _, high = item.partition("-")
+                    if low.isdigit() and any((p, proto) in wanted for p in range(int(low), int(high or low) + 1)):
+                        conflicts.append(f"{item}/{proto} ({inst['name']} device {dev})")
+        return conflicts
+
+    def preflight_host_ports(self, planned: Sequence[Dict[str, Any]], own_names: Sequence[str] = ()) -> None:
+        """Refuse before any change when a program or another container owns a planned host port."""
         _, stdout, _ = self.runner.run("ss -Htulnp 2>/dev/null || true", check=False)
         wanted = {(p["ext"], p["proto"]) for p in planned}
         conflicts = []
@@ -388,15 +426,17 @@ class LXCProvisioner:
             procs = set(re.findall(r'\("([^"]+)"', line))
             if port.isdigit() and (int(port), parts[0]) in wanted and not procs & {"lxd", "forkproxy"}:
                 conflicts.append(f"{port}/{parts[0]} ({', '.join(sorted(procs)) or 'unknown process'})")
+        conflicts += self.nat_conflicts(wanted, own_names)
         if conflicts:
             raise RemoteError("Planned host ports are already in use: " + ", ".join(sorted(set(conflicts))))
 
-    def apply_host_network(self, planned: Sequence[Dict[str, Any]]) -> Dict[str, str]:
+    def apply_host_network(self, planned: Sequence[Dict[str, Any]], tune: bool = True) -> Dict[str, str]:
         ports = sorted({f"{p['ext']}/{p['proto']}" for p in planned})
         _, stdout, _ = self.runner.run(host_firewall_script(self.bridge_name, ports))
         result = parse_kv(stdout)
-        _, stdout, _ = self.runner.run(host_tuning_script())
-        result.update(parse_kv(stdout))
+        if tune:
+            _, stdout, _ = self.runner.run(host_tuning_script())
+            result.update(parse_kv(stdout))
         return result
 
     def ensure_storage_and_network(self) -> None:
@@ -614,7 +654,8 @@ dpkg -s {PACKAGES} >/dev/null
                          host_ip: str = "",
                          public_ip: str = "",
                          known_password: Optional[str] = None,
-                         rotate_password: bool = False) -> Dict[str, Any]:
+                         rotate_password: bool = False,
+                         https_override: Optional[int] = None) -> Dict[str, Any]:
         """Create the container if needed, then reconcile limits, access, packages and ports."""
         inst = self.query(f"/1.0/instances/{name}", missing_ok=True)
         is_new = inst is None
@@ -647,7 +688,7 @@ dpkg -s {PACKAGES} >/dev/null
         self.setup_clean_environment(name, hostname=hostname)
         packages_ready = self.prepare_3xui_pre_requisites(name) if prepare_3xui else False
 
-        port_defs = get_container_port_definitions(container_idx, ssh_port, is_primary_proxy)
+        port_defs = get_container_port_definitions(container_idx, ssh_port, is_primary_proxy, https_override)
         print(f"[*] Reconciling {len(port_defs)} port mappings for '{name}'...")
         inst = self.query(f"/1.0/instances/{name}")
         ports = self.reconcile_ports(name, port_defs, host_ip, ip, inst)
@@ -677,7 +718,7 @@ dpkg -s {PACKAGES} >/dev/null
             "password": password,
             "is_3xui_ready": packages_ready,
             "ports": ports,
-            "deployer_config": deployer_config(public_ip or host_ip, container_idx, ssh_port, password),
+            "deployer_config": deployer_config(public_ip or host_ip, container_idx, ssh_port, password, https_override),
             "specs": {
                 "cpu_cores": cpu,
                 "memory": f"{memory_mb}MB",

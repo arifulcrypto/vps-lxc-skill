@@ -123,6 +123,9 @@ Using Cloudflare **Origin Rules**, visitors access websites via pure standard do
 | `--image` | string | `ubuntu-minimal:24.04` | Container image |
 | `--storage-driver` | string | `dir` | Driver when the pool has to be created: `dir`, `btrfs`, `zfs`, `lvm` |
 | `--rotate-passwords` | flag | `false` | Generate new root passwords for existing containers |
+| `--first-index` | int | `1` | Matrix position of the first container, for adding containers to a host |
+| `--https-port` | int | from matrix | Public HTTPS port for a single container |
+| `--host-tuning` | bool | `true` | Set BBR and UDP buffers on the host. Use `--no-host-tuning` on hosts with live services |
 | `--dry-run` | flag | `false` | Validate inputs and preview configuration |
 
 ---
@@ -157,4 +160,5 @@ All cluster documentation and credentials are organized cleanly in `/root/02proj
 - **Host setup.** BBR and 16 MB UDP buffers are set on the host, because containers cannot set them. Active UFW or firewalld gets the bridge and planned-port rules, and a Docker `FORWARD DROP` policy is handled by a small persistent unit.
 - **Honest reports.** `disk_quota_enforced` shows whether the guest really sees the limit. The default `dir` pool only enforces it on ext4/XFS with project quotas, so use `--storage-driver btrfs` on a new pool when you need a hard limit. A name such as `c4-desktop` is only an example: the tool reserves the desktop ports but does not install a desktop.
 - **Pair with vps-deploy-skill.** Each container gets `deploy_<name>.json`, or use `--from-lxc result.json --container <name>` in the deployer. Secondary containers do not receive public port 80, so they use `cert_mode: dns-01` when a domain is set.
+- **Adding to a busy host.** `--first-index N --https-port P --no-host-tuning` adds one container without reusing the first positions. The port check covers listening programs and NAT forwards of other containers, which have no listening socket. Tested on a live host with LXD 4.0.15.
 - **Automatic LXD install** supports Ubuntu and Debian. On other systems, install LXD first.

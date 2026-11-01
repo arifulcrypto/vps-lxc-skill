@@ -119,6 +119,8 @@ class FakeLXD:
             if match.group(1) in self.profiles:
                 return 0, json.dumps(self.profiles[match.group(1)]), ""
             return 1, "", "Error: Profile not found"
+        if path == "/1.0/instances?recursion=1":
+            return 0, json.dumps(list(self.instances.values())), ""
         match = re.match(r"/1.0/instances/([^?]+)", path)
         if match:
             inst = self.instances.get(match.group(1))
@@ -328,3 +330,70 @@ def test_runbook_uses_real_container_names():
 @pytest.mark.parametrize("value,expected", [("1024MB", 1024), ("10GB", 10000), ("1GiB", 1024), ("x", 0)])
 def test_parse_size(value, expected):
     assert parse_size_mb(value) == expected
+
+
+NAT_DEVICE = {"type": "proxy", "listen": "tcp:203.0.113.10:8443", "connect": "tcp:10.0.43.10:8443", "nat": "true"}
+
+
+def lxd_with(devices, name="c1-proxy"):
+    lxd = FakeLXD()
+    lxd.instances[name] = {"name": name, "status": "Running", "config": {}, "devices": devices}
+    return lxd
+
+
+def test_nat_forward_of_another_container_blocks_the_port():
+    lxd = lxd_with({"p8443": NAT_DEVICE})
+    with pytest.raises(RemoteError, match=r"8443/tcp \(c1-proxy device p8443\)"):
+        LXCProvisioner(lxd).preflight_host_ports([{"ext": 8443, "proto": "tcp"}], ["vps-01"])
+
+
+def test_own_devices_and_other_ports_do_not_block():
+    lxd = lxd_with({"p8443": NAT_DEVICE})
+    LXCProvisioner(lxd).preflight_host_ports([{"ext": 8443, "proto": "tcp"}], ["c1-proxy"])
+    LXCProvisioner(lxd).preflight_host_ports([{"ext": 2083, "proto": "tcp"}], ["vps-01"])
+
+
+def test_protocol_and_port_ranges_are_respected():
+    lxd = lxd_with({"r": dict(NAT_DEVICE, listen="udp:203.0.113.10:40000-40010")})
+    p = LXCProvisioner(lxd)
+    p.preflight_host_ports([{"ext": 40005, "proto": "tcp"}], [])
+    with pytest.raises(RemoteError, match="40000-40010/udp"):
+        p.preflight_host_ports([{"ext": 40005, "proto": "udp"}], [])
+
+
+def test_ipv6_listener_does_not_block_ipv4_forward():
+    lxd = lxd_with({"v6": dict(NAT_DEVICE, listen="tcp:[2001:db8::1]:8443")})
+    LXCProvisioner(lxd).preflight_host_ports([{"ext": 8443, "proto": "tcp"}], [])
+
+
+def test_first_index_adds_a_container_with_its_own_ports():
+    plan = validate_plan(base_cfg(names="extra", first_index=5, https_port=2083))
+    assert plan["indices"] == [5] and plan["ssh_ports"] == [2205]
+    exts = {p["ext"] for p in plan["matrix"][0]}
+    assert {2205, 2083, 54844, 20163, 10051} <= exts and 2087 not in exts
+
+
+@pytest.mark.parametrize("cfg,message", [
+    ({"count": 2, "first_index": 6}, "goes past position 6"),
+    ({"count": 2, "https_port": 2083}, "single container"),
+])
+def test_invalid_positions_are_rejected(cfg, message):
+    with pytest.raises(RemoteError, match=message):
+        validate_plan(base_cfg(**cfg))
+
+
+def test_https_override_reaches_the_deployer_and_needs_dns_validation():
+    cfg = deployer_config("203.0.113.10", 5, 2205, "pw", 2083)
+    assert cfg["https_port"] == 2083 and cfg["cert_mode"] == "dns-01"
+
+
+def test_host_tuning_can_be_skipped():
+    lxd = FakeLXD()
+    LXCProvisioner(lxd).apply_host_network([{"ext": 2083, "proto": "tcp"}], tune=False)
+    assert not any("HOST_CC" in c for c in lxd.commands)
+
+
+def test_lxd_4_missing_object_wording_counts_as_missing():
+    lxd = FakeLXD()
+    lxd.dispatch = lambda cmd: (1, "", "Error: Fetch profile: No such object")
+    assert LXCProvisioner(lxd).query("/1.0/profiles/x", missing_ok=True) is None
