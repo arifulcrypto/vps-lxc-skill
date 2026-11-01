@@ -1,7 +1,7 @@
 # VPS LXC Deployer Skill
 
 > Automated LXC Container Provisioning Engine for Linux VPS Instances.
-> Deploy high-density, isolated containers (2-4 containers, 2 vCPU, 1-2GB RAM, 10GB disk, or auto-split) with independent SSH ports, secure random passwords, Cloudflare CDN port matrix, native RDP 3389 direct connection, and 3X-UI / Docker nesting support.
+> Deploy high-density, isolated containers (1-6 containers, 2 vCPU, 1-2GB RAM, 10GB disk, or auto-split) with independent SSH ports, secure random passwords, Cloudflare CDN port matrix, native RDP 3389 direct connection, and 3X-UI / Docker nesting support.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
@@ -12,7 +12,7 @@
 
 ## Key Features
 
-- **Automated Host Setup**: Auto-detects and installs LXD, configures lightweight `dir` storage pool, and provisions `lxdbr0` managed bridge with IPv4/IPv6 NAT out of the box.
+- **Automated Host Setup**: Auto-detects and installs LXD, configures a `dir` storage pool by default, and provisions `lxdbr0` managed bridge with IPv4/IPv6 NAT out of the box.
 - **Resource Allocation Flexibility**:
   - **Default Fixed Specs**: 2 vCPU, 1GB RAM (strict cgroup memory limit, swap enabled), 10GB disk quota.
   - **Auto-Split Mode (`--auto-split`)**: Fairly divides available host RAM and disk space equally between containers while reserving headroom for host OS.
@@ -98,7 +98,7 @@ python3 scripts/vps_lxc.py --ip 198.51.100.1 --ssh-port 2222 --ssh-key ~/.ssh/id
 # 4. Auto-split host RAM & Disk fairly between containers
 python3 scripts/vps_lxc.py --ip 198.51.100.1 --ssh-pass 'your_vps_password' --auto-split
 
-# 5. Custom container count (up to 4)
+# 5. Custom container count (up to 6)
 python3 scripts/vps_lxc.py --ip 198.51.100.1 --ssh-pass 'your_vps_password' --count 4
 ```
 
@@ -118,3 +118,14 @@ Upon completion, all credentials, port forwarding matrices, and guides are organ
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+## Behavior You Can Rely On
+
+- **Repeatable runs.** A rerun compares LXD state with the plan and changes only the differences. It applies new limits, starts stopped containers, keeps passwords (use `--rotate-passwords` to change them) and leaves matching port devices alone.
+- **Validated first.** Names, count (1-6), limits and the whole port matrix are checked before any host change. A planned port held by another program stops the run.
+- **Dedicated profile.** Containers use the `vps-lxc` profile. The host's `default` profile is never modified.
+- **Static addresses and kernel NAT.** Containers get `.10`, `.20`, `.30` ... on the bridge, and forwards use LXD NAT mode with the host's real IPv4 address. The result records the mode for each port. `userspace` means the slower fallback was needed.
+- **Host setup.** BBR and 16 MB UDP buffers are set on the host, because containers cannot set them. Active UFW or firewalld gets the bridge and planned-port rules, and a Docker `FORWARD DROP` policy is handled by a small persistent unit.
+- **Honest reports.** `disk_quota_enforced` shows whether the guest really sees the limit. The default `dir` pool only enforces it on ext4/XFS with project quotas, so use `--storage-driver btrfs` on a new pool when you need a hard limit. A name such as `c4-desktop` is only an example: the tool reserves the desktop ports but does not install a desktop.
+- **Pair with vps-deploy-skill.** Each container gets `deploy_<name>.json`, or use `--from-lxc result.json --container <name>` in the deployer. Secondary containers do not receive public port 80, so they use `cert_mode: dns-01` when a domain is set.
+- **Automatic LXD install** supports Ubuntu and Debian. On other systems, install LXD first.

@@ -7,10 +7,24 @@ and exports secure result.json.
 """
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
-def render_summary(host_ip: str, containers: List[Dict[str, Any]]) -> str:
+def forward_summary(ports: List[Dict[str, Any]]) -> str:
+    """Effective forwarding modes, as observed when the devices were applied."""
+    modes = sorted({p.get("forward", "unknown") for p in ports})
+    return " + ".join(modes) if modes else "none"
+
+
+def disk_label(specs: Dict[str, Any]) -> str:
+    return specs["disk"] + ("" if specs.get("disk_quota_enforced") else " (quota NOT enforced)")
+
+
+def password_label(container: Dict[str, Any]) -> str:
+    return container.get("password") or "unchanged (not known to this run)"
+
+
+def render_summary(host_ip: str, containers: List[Dict[str, Any]], archive_dir: str = "") -> str:
     lines = [
         "=" * 76,
         "  VPS LXC Multi-Container Deployment Archive",
@@ -33,11 +47,11 @@ def render_summary(host_ip: str, containers: List[Dict[str, Any]]) -> str:
             f"    Role          : {role}",
             f"    Status        : {c['status']}",
             f"    Internal IP   : {c['ipv4']} (IPv4) / {c['ipv6']} (IPv6)",
-            f"    Hardware Specs: {c['specs']['cpu_cores']} vCPU | {c['specs']['memory']} RAM | {c['specs']['disk']} Disk",
-            f"    Mapped Ports  : {port_count} dedicated ports (Kernel NAT)",
+            f"    Hardware Specs: {c['specs']['cpu_cores']} vCPU | {c['specs']['memory']} RAM | {disk_label(c['specs'])} Disk",
+            f"    Mapped Ports  : {port_count} dedicated ports ({forward_summary(ports)})",
             f"    SSH Port      : {c['ssh_port']}",
             f"    SSH Username  : {c['user']}",
-            f"    SSH Password  : {c['password']}",
+            f"    SSH Password  : {password_label(c)}",
             f"    Connect Cmd   : {ssh_cmd}",
             ""
         ])
@@ -49,7 +63,7 @@ def render_summary(host_ip: str, containers: List[Dict[str, Any]]) -> str:
         "1. Passwords are cryptographically generated and 100% isolated from the host root password.",
         "2. All containers run with security.nesting=true and support Docker, 3X-UI, and Realm natively.",
         "3. Every container is pre-allocated abundant ports (14-16 ports) for Direct, CDN, Relay, and Residential proxies.",
-        "4. All documentation and credentials are centrally archived under /root/02project/01LXD_vps_info/ on the host.",
+        f"4. All documentation and credentials are archived in {archive_dir or 'the output directory'}.",
         "=" * 76,
     ])
     return "\n".join(lines)
@@ -72,18 +86,19 @@ def render_markdown_credentials(host_ip: str, containers: List[Dict[str, Any]]) 
         specs = f"{c['specs']['cpu_cores']} vCPU / {c['specs']['memory']}"
         connect_cmd = f"`ssh -p {c['ssh_port']} {c['user']}@{host_ip}`"
         lines.append(
-            f"| **{c['name']}** | `{c['ipv4']}` | {role} | {specs} | **{c['ssh_port']}** | `{c['user']}` | `{c['password']}` | {connect_cmd} |"
+            f"| **{c['name']}** | `{c['ipv4']}` | {role} | {specs} | **{c['ssh_port']}** | `{c['user']}` | `{password_label(c)}` | {connect_cmd} |"
         )
 
     lines.extend([
         "",
         "## 2. Supercharged Port Forwarding Matrix",
         "",
-        "All ports are forwarded via LXD native proxy devices with kernel-level `nat=true` DNAT.",
+        "All ports use LXD proxy devices. The Mode column shows what was actually applied: "
+        "`nat` is kernel DNAT, `userspace` is the slower forkproxy fallback.",
         "",
-        "| Container | External Port | Protocol | Target | Designated Role / Protocol |",
-        "| :--- | :--- | :---: | :--- | :--- |"
-    ] )
+        "| Container | External Port | Protocol | Target | Mode | Designated Role / Protocol |",
+        "| :--- | :--- | :---: | :--- | :--- | :--- |"
+    ])
 
     for c in containers:
         name = c["name"]
@@ -92,14 +107,10 @@ def render_markdown_credentials(host_ip: str, containers: List[Dict[str, Any]]) 
         if ports:
             for p in ports:
                 lines.append(
-                    f"| `{name}` | **`{p['ext']}`** | {p['proto'].upper()} | `{ip}:{p['int']}` | {p['role']} |"
+                    f"| `{name}` | **`{p['ext']}`** | {p['proto'].upper()} | `{ip}:{p['int']}` | {p.get('forward', '')} | {p['role']} |"
                 )
         else:
-            # Fallback display if ports not populated
-            lines.append(f"| `{name}` | **`{c['ssh_port']}`** | TCP | `{ip}:22` | Container SSH Management |")
-            if c.get("is_3xui_ready"):
-                lines.append(f"| `{name}` | **`80`** | TCP | `{ip}:80` | HTTP Web / Acme.sh |")
-                lines.append(f"| `{name}` | **`443`** | TCP | `{ip}:443` | HTTPS Standard CDN Direct |")
+            lines.append(f"| `{name}` | **`{c['ssh_port']}`** | TCP | `{ip}:22` | | Container SSH Management |")
 
     lines.extend([
         "",
@@ -117,6 +128,8 @@ def render_markdown_credentials(host_ip: str, containers: List[Dict[str, Any]]) 
 
 
 def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) -> str:
+    relay_name, relay_port = containers[-1]["name"], 10000 + len(containers) * 10 + 1
+    res_port = 10000 + len(containers) * 10 + 3
     lines = [
         f"# Relay & Residential Exit Extension Runbook ({host_ip})",
         "",
@@ -126,7 +139,7 @@ def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) 
         "",
         "## 1. Quick Port Reference for Relays & Residential Proxies",
         "",
-        "| Container | Realm Relay 1 (NAT Exit) | Realm Relay 2 (Secondary) | Residential SOCKS5 Entry | 233boy VMess/Trojan |",
+        "| Container | Realm Relay 1 (NAT Exit) | Realm Relay 2 (Secondary) | Residential SOCKS5 Entry | 233boy VMess |",
         "| :--- | :---: | :---: | :---: | :---: |"
     ]
 
@@ -148,12 +161,12 @@ def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) 
         "Example Input URI: `vless://UUID@US_IP:US_PORT?security=reality&encryption=none&pbk=PBK&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=SNI&sid=SID#US-Exit`",
         "",
         "**Action for LLM**:",
-        "1. Select the designated container (default: `c3-backup` on port `10031` or `c2-app` on port `10021`).",
+        f"1. Select the designated container (default: `{relay_name}` on port `{relay_port}`).",
         "2. Execute the Realm one-liner inside the container:",
         "```bash",
-        "# Run inside container (e.g. lxc exec c3-backup -- bash):",
+        f"# Run inside container (lxc exec {relay_name} -- bash):",
         "mkdir -p /opt/realm /etc/realm",
-        "curl -L -o /tmp/realm.tar.gz https://github.com/zhboner/realm/releases/latest/download/realm-x86_64-unknown-linux-musl.tar.gz",
+        'curl -fL -o /tmp/realm.tar.gz "https://github.com/zhboner/realm/releases/download/v2.9.6/realm-$(uname -m)-unknown-linux-musl.tar.gz"',
         "tar -zxvf /tmp/realm.tar.gz -C /opt/realm/ && chmod +x /opt/realm/realm",
         "ln -sf /opt/realm/realm /usr/local/bin/realm",
         "",
@@ -163,7 +176,7 @@ def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) 
         "use_udp = false",
         "",
         "[[endpoints]]",
-        'listen = "0.0.0.0:10031"',
+        f'listen = "0.0.0.0:{relay_port}"',
         'remote = "US_IP:US_PORT"',
         "EOF",
         "",
@@ -181,7 +194,7 @@ def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) 
         "systemctl daemon-reload && systemctl enable --now realm",
         "```",
         "3. Output the rewritten client node link:",
-        f"   - Replace `US_IP:US_PORT` with `{host_ip}:10031`.",
+        f"   - Replace `US_IP:US_PORT` with `{host_ip}:{relay_port}`.",
         "   - Keep all other parameters (`uuid`, `pbk`, `sni`, `sid`, `flow`) intact.",
         "",
         "---",
@@ -190,8 +203,9 @@ def render_relay_and_exit_guide(host_ip: str, containers: List[Dict[str, Any]]) 
         "Example Input: Host: `geo.iproyal.com`, Port: `12321`, User: `customer-xxx_session-yyy`, Pass: `pass`.",
         "",
         "**Action for LLM**:",
-        "1. Select the designated container (default: `c2-app` or `c3-backup` on port `10023` / `10033`).",
-        "2. In Xray/3X-UI inbound on port `10023` (VLESS-REALITY or Trojan), attach an outbound route to the SOCKS5 upstream.",
+        f"1. Select the designated container (default: `{relay_name}` on port `{res_port}`).",
+        f"2. In Xray/3X-UI, add a SOCKS5 outbound and route the inbound on port `{res_port}` to it. "
+        "This step is manual: neither tool configures server-side routing yet.",
         "3. **In `clash_config.yaml`**:",
         "   - **Strict Rule**: Place this proxy under `🏠 住宅与家宽专线`.",
         "   - **Strict Rule**: NEVER place it under `⚡ 自动选择 (低延迟)` / `url-test` to avoid burning metered bandwidth.",
@@ -209,11 +223,11 @@ def render_cloudflare_rules(host_ip: str, containers: List[Dict[str, Any]]) -> s
         "- Supported Alternate HTTPS: `8443`, `2053`, `2083`, `2087`, `2096`",
         "",
         "### How to Bind Domains Without Port Suffixes (Origin Rules)",
-        f"1. In Cloudflare DNS, create an `A` record pointing your domain (e.g. `c2.domain.com`) to host IP `{host_ip}` with Proxied (Orange Cloud) enabled.",
+        f"1. In Cloudflare DNS, create an `A` record pointing your domain (e.g. `app.domain.com`) to host IP `{host_ip}` with Proxied (Orange Cloud) enabled.",
         "2. Navigate to **Rules -> Origin Rules -> Create rule** in the Cloudflare dashboard.",
-        "3. Match Expression: `Hostname equals c2.domain.com`",
-        "4. Rewrite destination port to: the assigned container port (e.g. `8443` for c2, `2053` for c3, or `2083` for c4).",
-        "5. Deploy rule. Visitors can now browse `https://c2.domain.com` without entering any port number.",
+        "3. Match Expression: `Hostname equals app.domain.com`",
+        "4. Rewrite destination port to the container's HTTPS port (`8443` for the second container, `2053` for the third, `2083` for the fourth).",
+        "5. Deploy rule. Visitors can now browse `https://app.domain.com` without entering any port number.",
         ""
     ]
     return "\n".join(lines)
@@ -231,12 +245,13 @@ def render_host_readme(host_ip: str, containers: List[Dict[str, Any]]) -> str:
         "- `relay_and_exit_guide.md`: Step-by-step Realm broadband relay & residential proxy runbook (LLM Prompt-Ready).",
         "- `cloudflare_origin_rules.md`: Cloudflare CDN configuration and portless domain mapping.",
         "- `result.json`: Machine-readable deployment metadata.",
+        "- `deploy_<container>.json`: Ready-to-use `--config` input for vps-deploy-skill, one per container.",
         "",
         "## Quick SSH Access",
         "```bash"
     ]
     for c in containers:
-        lines.append(f"ssh -p {c['ssh_port']} {c['user']}@{host_ip}   # {c['name']} (Pass: {c['password']})")
+        lines.append(f"ssh -p {c['ssh_port']} {c['user']}@{host_ip}   # {c['name']} (Pass: {password_label(c)})")
     lines.extend([
         "```",
         ""
@@ -244,14 +259,16 @@ def render_host_readme(host_ip: str, containers: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def save_artifacts(output_dir: str, host_ip: str, containers: List[Dict[str, Any]]) -> Dict[str, str]:
+def save_artifacts(output_dir: str, host_ip: str, containers: List[Dict[str, Any]],
+                   host_state: Optional[Dict[str, str]] = None,
+                   warnings: Optional[List[str]] = None) -> Dict[str, str]:
     os.makedirs(output_dir, exist_ok=True)
     try:
         os.chmod(output_dir, 0o700)
     except Exception:
         pass
 
-    summary_text = render_summary(host_ip, containers)
+    summary_text = render_summary(host_ip, containers, output_dir)
     summary_path = os.path.join(output_dir, f"vps_lxc_{host_ip}_summary.txt")
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(summary_text)
@@ -280,13 +297,22 @@ def save_artifacts(output_dir: str, host_ip: str, containers: List[Dict[str, Any
         "status": "success",
         "host_ip": host_ip,
         "container_count": len(containers),
+        "host": host_state or {},
+        "warnings": warnings or [],
         "containers": containers
     }
     result_path = os.path.join(output_dir, "result.json")
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(result_data, f, indent=2, ensure_ascii=False)
 
-    for p in (summary_path, creds_path, relay_path, cf_path, readme_path, result_path):
+    deploy_paths = []
+    for c in containers:
+        deploy_path = os.path.join(output_dir, f"deploy_{c['name']}.json")
+        with open(deploy_path, "w", encoding="utf-8") as f:
+            json.dump(c.get("deployer_config", {}), f, indent=2)
+        deploy_paths.append(deploy_path)
+
+    for p in (summary_path, creds_path, relay_path, cf_path, readme_path, result_path, *deploy_paths):
         try:
             os.chmod(p, 0o600)
         except Exception:
