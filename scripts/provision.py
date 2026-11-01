@@ -13,7 +13,7 @@ import shlex
 import string
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from scripts import boot_check
+from scripts import boot_check, traffic_guard
 from scripts.remote import RemoteError, TargetRunner
 
 PASSWORD_CHARS = string.ascii_letters + string.digits + "@#%="
@@ -386,6 +386,11 @@ class LXCProvisioner:
         """Containers that are running now, so an existing cluster gets the self-check unchanged."""
         return [boot_check.discover_container(inst, host_ip) for inst in self.query("/1.0/instances?recursion=1")
                 if inst.get("status") == "Running"]
+
+    def install_traffic_guard(self, limit_gb: int, reset_day: int = 1) -> str:
+        _, iface, _ = self.runner.run("ip -4 route show default | awk '{print $5; exit}'")
+        self.runner.run(traffic_guard.install_script(iface.strip(), limit_gb, reset_day), timeout=300)
+        return iface.strip()
 
     def boot_status(self) -> str:
         _, stdout, _ = self.runner.run(f"cat {boot_check.STATUS} 2>/dev/null || true", check=False)
