@@ -5,9 +5,8 @@ Supports custom SSH ports, SSH private key authentication, password authenticati
 via sshpass, and safe non-interactive execution with timeouts.
 """
 import os
-import shlex
 import subprocess
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 class RemoteError(Exception):
@@ -50,10 +49,12 @@ class TargetRunner:
         Executes a command either locally or remotely over SSH.
         Standard input is strictly redirected to /dev/null to prevent hanging on pipes.
         """
+        # Non-login shells miss /snap/bin on Debian and under sudo.
+        wrapped = f'export PATH="$PATH:/snap/bin"\n{cmd}'
         if self.is_local or not self.ip:
-            full_cmd = ["bash", "-c", cmd]
+            full_cmd = ["bash", "-c", wrapped]
         else:
-            full_cmd = self.build_ssh_command(cmd)
+            full_cmd = self.build_ssh_command(wrapped)
 
         try:
             res = subprocess.run(
