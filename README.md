@@ -165,3 +165,12 @@ Containers are also set to `boot.autostart=true`. Containers created separately 
 | Host BBR is off | The setting was never saved | The tool saves it unless `--no-host-tuning` was used |
 | Forwards fail after the provider changes the IP | Forwards are bound to the old address | Re-run the tool, then update DNS |
 | Extra disk is not visible | The partition needs growing | Run `growpart` and `resize2fs` |
+
+## Relay, Residential Extensions & Xray Compatibility
+
+When configuring Layer 4 Realm relays or residential exits inside LXC containers (e.g., `c1-proxy` or secondary containers):
+- **Realm Layer 4 Relay**: Containers can host both 3X-UI and Realm relay side-by-side without port collisions. Forward local high ports (e.g. `10011`) directly to external residential / ISP landing nodes.
+- **Dual Landing Provisioning**: Always provide both the relayed node (intermediate VPS -> landing exit) and the direct landing node (fallback).
+- **Client Group Ordering**: In Clash Verge Rev configurations, place `🚀 节点选择` at index 0 of `proxy-groups:`, and set `⚡ 自动选择 (低延迟)` as the first item within it.
+- **In-Container Xray Version**: When installing 3X-UI inside containers, pin Xray-core to `v26.6.27` to avoid REALITY AEAD handshake incompatibilities with Mihomo / Clash Verge Rev, and ensure `flow_override: xtls-rprx-vision` in SQLite to prevent v2rayN `-1` timeout.
+- **Neutral Naming**: Ensure client-facing configurations are free of sensitive operator/carrier branding.
