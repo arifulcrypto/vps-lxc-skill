@@ -29,7 +29,7 @@ WEB_BACKEND_PORT = 18443
 SUPPORTED_INSTALL_OS = ("ubuntu", "debian")
 PACKAGES = "curl socat cron python3 openssl iproute2 tar ca-certificates ufw iptables openssh-server unzip"
 BASE_PACKAGES = "openssh-server iproute2 ca-certificates"
-RECOMMENDED_OS = {"ubuntu": ("22.04", "24.04"), "debian": ("12", "13")}
+RECOMMENDED_OS = {"ubuntu": ("24.04",), "debian": ("12",)}
 MIN_KERNEL = (5, 15)
 MIN_LXD = (5, 21)
 NAME_RE = re.compile(r"^[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
@@ -225,9 +225,9 @@ def grade_host(facts: Dict[str, str], count: int = 1) -> List[Dict[str, str]]:
     os_id, version = facts.get("OS_ID", ""), facts.get("OS_VERSION", "")
     current = RECOMMENDED_OS.get(os_id)
     if current is None:
-        add("warn", "Operating system", f"{os_id} {version}", "Use Debian 13 or Ubuntu 24.04 LTS.")
+        add("warn", "Operating system", f"{os_id} {version}", "Use Debian 12 or Ubuntu 24.04 LTS.")
     elif _version(version) < _version(current[0]):
-        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Debian 13 or Ubuntu 24.04 LTS.")
+        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Debian 12 or Ubuntu 24.04 LTS.")
     else:
         add("ok", "Operating system", f"{os_id} {version}")
 
@@ -673,7 +673,8 @@ echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config.d/99-root.conf
 sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf /etc/ssh/sshd_config
 sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config.d/*.conf /etc/ssh/sshd_config
 {set_password}
-systemctl restart ssh 2>/dev/null || systemctl restart sshd
+systemctl disable --now ssh.socket 2>/dev/null || true
+systemctl enable --now ssh.service 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 """
         self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(setup_script)}")
 

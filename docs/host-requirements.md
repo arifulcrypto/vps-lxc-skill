@@ -10,41 +10,35 @@ python3 scripts/vps_lxc.py --ip <IP> --ssh-port <PORT> --count <N> --check-host
 
 ## Which OS to choose
 
-**Recommended for a new host: Debian 13.** It's the lightest full choice here, is supported the longest of the tested options, and has a modern kernel. If your provider only offers Ubuntu, use **Ubuntu 24.04**, ideally the minimal image.
+**Recommended host OS: Ubuntu 24.04 LTS or Debian 12.** Both are fully tested and officially supported. Ubuntu 24.04 (especially the minimal cloud image) provides modern 6.8+ kernels with native BBR and systemd socket support, while Debian 12 provides a proven lightweight footprint.
 
-| OS | Support ends | Verdict |
+| OS | Tested Status | Verdict |
 | :--- | :--- | :--- |
-| **Debian 13** | June 2030 | **First choice** |
-| **Ubuntu 24.04 LTS** | May 2029 | Excellent, especially the minimal image |
-| Ubuntu 26.04 LTS | May 2031 | Works, longest support, but uses the most memory and disk |
-| Debian 12 | June 2028 | Works. Full support ended, security fixes continue |
-| Ubuntu 22.04 LTS | June 2027 | Short life left. Some cloud images have no BBR |
-| Ubuntu 20.04 and older | Ended | Avoid for new hosts |
+| **Ubuntu 24.04 LTS** | Fully tested in CI | **Primary choice**, modern kernel 6.8+, full BBR |
+| **Debian 12** | Fully tested in CI | **Primary choice**, rock solid, lightweight |
+| Legacy / Other | Untested | Use Ubuntu 24.04 or Debian 12 |
 
 ### Measured on real 4 GB, 2 vCPU KVM hosts
 
-Each host was installed fresh, got LXD and two containers through this tool, then did a real reboot. CI repeats this weekly in the `Host OS` workflow.
+Each host was installed fresh, got LXD and two containers through this tool, then did a real reboot. CI repeats this in the `Host OS` workflow.
 
 | OS | Memory, fresh boot | Memory, LXD + 2 containers | Disk, fresh | Disk, with stack |
 | :--- | :--- | :--- | :--- | :--- |
-| Debian 13 | 290 MB | 565 MB | 695 MB | 2.8 GB |
 | Debian 12 | 274 MB | 572 MB | 991 MB | 3.1 GB |
 | Ubuntu 24.04 minimal | 314 MB | 583 MB | 481 MB | 2.7 GB |
-| Ubuntu 24.04 | 370 MB | 624 MB | 1.6 GB | 3.8 GB |
-| Ubuntu 26.04 | 494 MB | 747 MB | 1.9 GB | 4.0 GB |
-| Ubuntu 22.04 (`-kvm` kernel) | 154 MB | 291 MB | 1.6 GB | 3.5 GB |
+| Ubuntu 24.04 standard | 370 MB | 624 MB | 1.6 GB | 3.8 GB |
 
-**Does Debian use less than Ubuntu?** Yes, but only a little: about 60 MB less than standard Ubuntu 24.04, and almost nothing against the minimal image. Choose by support dates and your provider's images, not by these small gaps. Ubuntu 22.04 is low only because that image uses a stripped kernel with no BBR.
+**Does Debian use less than Ubuntu?** Yes, but only a little: about 50 MB less than standard Ubuntu 24.04, and almost identical to the minimal image.
 
 ## Recommended setup
 
 | Item | Recommended | Also works | Avoid |
 | :--- | :--- | :--- | :--- |
 | Virtualization | KVM or bare metal | | OpenVZ, LXC or Docker VPS: LXD can't run inside them |
-| Host OS | **Debian 13** or **Ubuntu 24.04 LTS** | Ubuntu 26.04, Debian 12 | Ubuntu 20.04 and older |
+| Host OS | **Ubuntu 24.04 LTS** or **Debian 12** | | Ubuntu 20.04 and older, unsupported distros |
 | Kernel | 6.x with BBR | 5.15 or newer | Kernels with no BBR module |
-| LXD | **5.21 LTS** (installed automatically) | 6.x; 4.0 passed a live test but is old | New installs of 4.0 |
-| Container image | **`ubuntu-minimal:24.04`** (default) | `images:debian/12`, `images:debian/13` | `images:` needs LXD 5.21 or newer |
+| LXD | **5.21 LTS** (installed automatically) | 6.x | New installs of 4.0 |
+| Container image | **`ubuntu-minimal:24.04`** (default) | `images:debian/12` | `images:` needs LXD 5.21 or newer |
 | Storage | `btrfs` on new hosts if you need hard disk limits | `dir` (default, simplest) | Relying on `dir` limits without project quotas |
 
 ## Machine size

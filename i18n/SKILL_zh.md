@@ -152,12 +152,12 @@ Cloudflare 官方免费套餐支持通过以下 6 个端口代理 HTTPS 流量�
 
 ## 系统与机器推荐
 
-- 新宿主机首选 **Debian 13**（支持到 2030 年 6 月）；服务商只提供 Ubuntu 时用 **Ubuntu 24.04**，最好是 minimal 镜像。必须是 KVM 或物理机，不支持 OpenVZ/LXC/Docker 类 VPS。
+- 新宿主机首选 **Ubuntu 24.04 LTS**（支持 6.8+ 内核与完整 BBR/Socket 激活）或 **Debian 12**（轻量稳定）。必须是 KVM 或物理机，不支持 OpenVZ/LXC/Docker 类 VPS。
 - LXD 推荐 **5.21 LTS**，内核 5.15 以上且包含 BBR。
-- 4G 内存 KVM 实测（LXD + 2 个容器）：Debian 13 约 565 MB，Ubuntu 24.04 minimal 约 583 MB，Ubuntu 24.04 约 624 MB，Ubuntu 26.04 约 747 MB。Debian 只比 Ubuntu 省约 60 MB，差距很小。
+- 4G 内存 KVM 实测（LXD + 2 个容器）：Debian 12 约 572 MB，Ubuntu 24.04 minimal 约 583 MB，两者内存开销差距仅约 10 MB。
 - 配置：1 个容器 1 核 1G 内存 10G 硬盘；2 个容器 2 核 2G 20G；4 个容器 2-4 核 4G 30G，并配置 1-2G Swap。
 - 容器空闲约 100 MB 内存，Ubuntu 与 Debian 镜像基本相同，保持默认镜像即可。
-- 客户端：Mihomo 需要 **v1.19.9 或更新版本**。
+- 客户端：节点链接采用通用标准 X25519，无需添加非标准参数，全面兼容 v2rayN、Mihomo / Clash Verge Rev 及在线转换。
 - 运行 `--check-host` 可在不做任何修改的情况下评估机器。详见 [Host Requirements](../docs/host-requirements.md)。
 - 软件版本与官方下载链接见 [Software Versions](../docs/software-versions.md)，运行 `python3 scripts/check_versions.py` 可检查新版本。
 

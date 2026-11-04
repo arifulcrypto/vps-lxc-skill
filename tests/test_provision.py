@@ -409,6 +409,7 @@ def levels(facts, count=1):
 
 def test_recommended_host_has_no_findings():
     assert set(levels({}).values()) == {"ok"}
+    assert levels({"OS_ID": "debian", "OS_VERSION": "12"})["Operating system"] == "ok"
 
 
 def test_lxd_not_installed_yet_is_fine():
