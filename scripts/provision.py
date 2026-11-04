@@ -29,7 +29,7 @@ WEB_BACKEND_PORT = 18443
 SUPPORTED_INSTALL_OS = ("ubuntu", "debian")
 PACKAGES = "curl socat cron python3 openssl iproute2 tar ca-certificates ufw iptables openssh-server unzip"
 BASE_PACKAGES = "openssh-server iproute2 ca-certificates"
-RECOMMENDED_OS = {"ubuntu": ("24.04",), "debian": ("12",)}
+RECOMMENDED_OS = {"ubuntu": ("24.04",), "debian": ("13",)}
 MIN_KERNEL = (5, 15)
 MIN_LXD = (5, 21)
 NAME_RE = re.compile(r"^[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
@@ -225,9 +225,9 @@ def grade_host(facts: Dict[str, str], count: int = 1) -> List[Dict[str, str]]:
     os_id, version = facts.get("OS_ID", ""), facts.get("OS_VERSION", "")
     current = RECOMMENDED_OS.get(os_id)
     if current is None:
-        add("warn", "Operating system", f"{os_id} {version}", "Use Debian 12 or Ubuntu 24.04 LTS.")
+        add("warn", "Operating system", f"{os_id} {version}", "Use Debian 13 or Ubuntu 24.04 LTS.")
     elif _version(version) < _version(current[0]):
-        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Debian 12 or Ubuntu 24.04 LTS.")
+        add("warn", "Operating system", f"{os_id} {version}", "Out of standard support. Move to Debian 13 or Ubuntu 24.04 LTS.")
     else:
         add("ok", "Operating system", f"{os_id} {version}")
 

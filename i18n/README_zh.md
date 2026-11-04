@@ -130,9 +130,9 @@ MIT License. 详见 [LICENSE](LICENSE)。
 
 ## 系统与机器推荐
 
-- 新宿主机首选 **Ubuntu 24.04 LTS**（支持 6.8+ 内核与完整 BBR/Socket 激活）或 **Debian 12**（轻量稳定）。必须是 KVM 或物理机，不支持 OpenVZ/LXC/Docker 类 VPS。
+- 新宿主机首选 **Debian 13**（支持到 2030 年 6 月）或 **Ubuntu 24.04 LTS**（支持 6.8+ 内核与完整 BBR/Socket 激活，最好是 minimal 镜像）。必须是 KVM 或物理机，不支持 OpenVZ/LXC/Docker 类 VPS。
 - LXD 推荐 **5.21 LTS**，内核 5.15 以上且包含 BBR。
-- 4G 内存 KVM 实测（LXD + 2 个容器）：Debian 12 约 572 MB，Ubuntu 24.04 minimal 约 583 MB，两者内存开销差距仅约 10 MB。
+- 4G 内存 KVM 实测（LXD + 2 个容器）：Debian 13 约 565 MB，Ubuntu 24.04 minimal 约 583 MB，两者内存开销差距仅约 18 MB。
 - 配置：1 个容器 1 核 1G 内存 10G 硬盘；2 个容器 2 核 2G 20G；4 个容器 2-4 核 4G 30G，并配置 1-2G Swap。
 - 容器空闲约 100 MB 内存，Ubuntu 与 Debian 镜像基本相同，保持默认镜像即可。
 - 客户端：节点链接采用通用标准 X25519，无需添加非标准参数，全面兼容 v2rayN、Mihomo / Clash Verge Rev 及在线转换。

@@ -10,13 +10,13 @@ python3 scripts/vps_lxc.py --ip <IP> --ssh-port <PORT> --count <N> --check-host
 
 ## Which OS to choose
 
-**Recommended host OS: Ubuntu 24.04 LTS or Debian 12.** Both are fully tested and officially supported. Ubuntu 24.04 (especially the minimal cloud image) provides modern 6.8+ kernels with native BBR and systemd socket support, while Debian 12 provides a proven lightweight footprint.
+**Recommended host OS: Ubuntu 24.04 LTS (minimal) or Debian 13.** Both are tested in CI and officially supported. Ubuntu-minimal 24.04 provides modern 6.8+ kernels with native BBR and systemd socket support, while Debian 13 provides a modern, long-supported lightweight environment.
 
 | OS | Tested Status | Verdict |
 | :--- | :--- | :--- |
-| **Ubuntu 24.04 LTS** | Fully tested in CI | **Primary choice**, modern kernel 6.8+, full BBR |
-| **Debian 12** | Fully tested in CI | **Primary choice**, rock solid, lightweight |
-| Legacy / Other | Untested | Use Ubuntu 24.04 or Debian 12 |
+| **Debian 13** | Fully tested in CI | **Primary choice**, long support, modern kernel |
+| **Ubuntu 24.04 LTS (minimal)** | Fully tested in CI | **Primary choice**, modern kernel 6.8+, full BBR |
+| Legacy / Other | Untested | Use Ubuntu 24.04 or Debian 13 |
 
 ### Measured on real 4 GB, 2 vCPU KVM hosts
 
@@ -24,7 +24,7 @@ Each host was installed fresh, got LXD and two containers through this tool, the
 
 | OS | Memory, fresh boot | Memory, LXD + 2 containers | Disk, fresh | Disk, with stack |
 | :--- | :--- | :--- | :--- | :--- |
-| Debian 12 | 274 MB | 572 MB | 991 MB | 3.1 GB |
+| Debian 13 | 290 MB | 565 MB | 695 MB | 2.8 GB |
 | Ubuntu 24.04 minimal | 314 MB | 583 MB | 481 MB | 2.7 GB |
 | Ubuntu 24.04 standard | 370 MB | 624 MB | 1.6 GB | 3.8 GB |
 
@@ -35,10 +35,10 @@ Each host was installed fresh, got LXD and two containers through this tool, the
 | Item | Recommended | Also works | Avoid |
 | :--- | :--- | :--- | :--- |
 | Virtualization | KVM or bare metal | | OpenVZ, LXC or Docker VPS: LXD can't run inside them |
-| Host OS | **Ubuntu 24.04 LTS** or **Debian 12** | | Ubuntu 20.04 and older, unsupported distros |
+| Host OS | **Ubuntu 24.04 LTS** or **Debian 13** | | Ubuntu 20.04 and older, unsupported distros |
 | Kernel | 6.x with BBR | 5.15 or newer | Kernels with no BBR module |
 | LXD | **5.21 LTS** (installed automatically) | 6.x | New installs of 4.0 |
-| Container image | **`ubuntu-minimal:24.04`** (default) | `images:debian/12` | `images:` needs LXD 5.21 or newer |
+| Container image | **`ubuntu-minimal:24.04`** (default) | `images:debian/13` | `images:` needs LXD 5.21 or newer |
 | Storage | `btrfs` on new hosts if you need hard disk limits | `dir` (default, simplest) | Relying on `dir` limits without project quotas |
 
 ## Machine size
