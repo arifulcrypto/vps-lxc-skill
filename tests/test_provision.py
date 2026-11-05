@@ -112,6 +112,12 @@ class FakeLXD:
             return 0, json.dumps(self.networks), ""
         if path.endswith("/leases"):
             return 0, "[]", ""
+        match = re.match(r"/1.0/networks/([^/]+)$", path)
+        if match:
+            net = next((n for n in self.networks if n["name"] == match.group(1)), None)
+            if net:
+                return 0, json.dumps(net), ""
+            return 0, json.dumps({"name": match.group(1), "managed": True, "config": {"ipv4.address": "10.0.43.1/24", "ipv4.nat": "true"}}), ""
         if path.startswith("/1.0/images/aliases/"):
             return 0, "{}", ""
         match = re.match(r"/1.0/profiles/(.+)", path)
@@ -453,3 +459,25 @@ def test_deployer_config_includes_the_exit_port():
 
 def test_kernel_without_bbr_is_reported():
     assert levels({"BBR": "no"})["BBR"] == "warn"
+
+
+def test_bridge_creation_disables_ipv6_by_default():
+    lxd = FakeLXD()
+    lxd.networks = []
+    p = LXCProvisioner(lxd, bridge_name="new-br0", enable_ipv6=False)
+    p.ensure_storage_and_network()
+    create_cmds = [c for c in lxd.commands if c.startswith("lxc network create")]
+    assert len(create_cmds) == 1
+    assert "ipv6.address=none" in create_cmds[0]
+    assert "ipv4.nat=true" in create_cmds[0]
+
+
+def test_bridge_creation_enables_ipv6_when_requested():
+    lxd = FakeLXD()
+    lxd.networks = []
+    p = LXCProvisioner(lxd, bridge_name="new-br0", enable_ipv6=True)
+    p.ensure_storage_and_network()
+    create_cmds = [c for c in lxd.commands if c.startswith("lxc network create")]
+    assert len(create_cmds) == 1
+    assert "ipv6.address=fd42:43::1/64 ipv6.nat=true" in create_cmds[0]
+

@@ -351,7 +351,7 @@ def parse_kv(text: str) -> Dict[str, str]:
 class LXCProvisioner:
     def __init__(self, runner: TargetRunner, bridge_name: str = "lxdbr0",
                  storage_pool: str = "default", image: str = DEFAULT_IMAGE,
-                 storage_driver: str = "dir"):
+                 storage_driver: str = "dir", enable_ipv6: bool = False):
         self.runner = runner
         self.bridge_name = bridge_name
         self.storage_pool = storage_pool
@@ -360,6 +360,7 @@ class LXCProvisioner:
         self.subnet: Optional[ipaddress.IPv4Network] = None
         self.warnings: List[str] = []
         self.local_image = image
+        self.enable_ipv6 = enable_ipv6
 
     def query(self, path: str, missing_ok: bool = False) -> Any:
         """Read the LXD API. A failed read raises, so it can never look like an empty result."""
@@ -558,10 +559,11 @@ fi
         networks = {n["name"]: n for n in self.query("/1.0/networks?recursion=1")}
         network = networks.get(self.bridge_name)
         if network is None:
+            v6_flag = "ipv6.address=fd42:43::1/64 ipv6.nat=true" if self.enable_ipv6 else "ipv6.address=none"
             self.runner.run(
                 f"lxc network create {self.bridge_name} "
                 "ipv4.address=10.0.43.1/24 ipv4.nat=true "
-                "ipv6.address=fd42:43::1/64 ipv6.nat=true"
+                f"{v6_flag}"
             )
             network = self.query(f"/1.0/networks/{self.bridge_name}")
         config = network.get("config", {})
@@ -648,18 +650,30 @@ exit 1
 
     def setup_clean_environment(self, name: str, hostname: str = "vps") -> None:
         """Set the hostname and a plain login banner, and keep the container free of guide files."""
+        v6_sysctl = """
+mkdir -p /etc/sysctl.d
+cat << 'VPS_LXC_EOF' > /etc/sysctl.d/99-disable-ipv6.conf
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+VPS_LXC_EOF
+sysctl -p /etc/sysctl.d/99-disable-ipv6.conf 2>/dev/null || true
+""" if not self.enable_ipv6 else """
+rm -f /etc/sysctl.d/99-disable-ipv6.conf 2>/dev/null || true
+"""
         clean_script = f"""
 set -e
 hostnamectl set-hostname {hostname} 2>/dev/null || echo "{hostname}" > /etc/hostname
 grep -q "127.0.1.1 {hostname}" /etc/hosts || echo "127.0.1.1 {hostname}" >> /etc/hosts
 rm -f /usr/local/bin/systemd-detect-virt /usr/local/bin/virt-what
 . /etc/os-release
-printf '%s\\n' '========================================================================' \
-    "  Welcome to $PRETTY_NAME" \
+printf '%s\\n' '========================================================================' \\
+    "  Welcome to $PRETTY_NAME" \\
     '========================================================================' > /etc/motd
 printf '%s \\\\n \\\\l\\n' "$PRETTY_NAME" > /etc/issue
 printf '%s\\n' "$PRETTY_NAME" > /etc/issue.net
 rm -f /root/CONTAINER_GUIDE.md /etc/vps-container-info.md
+{v6_sysctl}
 """
         self.runner.run(f"lxc exec {name} -- bash -c {shlex.quote(clean_script)}")
 

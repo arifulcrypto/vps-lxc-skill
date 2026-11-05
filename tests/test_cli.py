@@ -17,6 +17,7 @@ class TestVPSLXCCLI(unittest.TestCase):
         self.assertIn("--auto-split", res.stdout)
         self.assertIn("--ssh-key", res.stdout)
         self.assertIn("--prepare-3xui", res.stdout)
+        self.assertIn("--enable-ipv6", res.stdout)
 
     def test_dry_run_plan(self):
         res = subprocess.run(

@@ -41,6 +41,7 @@ DEFAULTS: Dict[str, Any] = {
     "check_host": False,
     "install_boot_check": False,
     "host_tuning": True,
+    "enable_ipv6": False,
     "image": DEFAULT_IMAGE,
     "storage_driver": "dir",
 }
@@ -77,6 +78,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--https-port", type=int, help="Public HTTPS port for a single container (default: from the matrix)")
     parser.add_argument("--host-tuning", dest="host_tuning", action=argparse.BooleanOptionalAction, default=None,
                         help="Set BBR and UDP buffers on the host (default: on)")
+    parser.add_argument("--enable-ipv6", dest="enable_ipv6", action=argparse.BooleanOptionalAction, default=None,
+                        help="Enable IPv6 networking and ULA NAT66 on containers (default: off, IPv4 only)")
     parser.add_argument("--listen-ip", help="Host IPv4 address for port forwards (default: auto-detected)")
     parser.add_argument("--image", help=f"Container image (default: {DEFAULT_IMAGE})")
     parser.add_argument("--storage-driver", choices=["dir", "btrfs", "zfs", "lvm"],
@@ -175,7 +178,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         key_file=cfg.get("ssh_key"),
         is_local=is_local
     )
-    provisioner = LXCProvisioner(runner, image=cfg["image"], storage_driver=cfg["storage_driver"])
+    provisioner = LXCProvisioner(
+        runner,
+        image=cfg["image"],
+        storage_driver=cfg["storage_driver"],
+        enable_ipv6=bool(cfg.get("enable_ipv6", False))
+    )
 
     if cfg.get("check_host"):
         try:

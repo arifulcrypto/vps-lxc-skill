@@ -46,7 +46,7 @@ def render_summary(host_ip: str, containers: List[Dict[str, Any]], archive_dir: 
             f"[{idx}] Container Name: {c['name']} (Hostname: {c.get('hostname', c['name'])})",
             f"    Role          : {role}",
             f"    Status        : {c['status']}",
-            f"    Internal IP   : {c['ipv4']} (IPv4) / {c['ipv6']} (IPv6)",
+            f"    Internal IP   : {c['ipv4']} (IPv4) / {c['ipv6'] or 'disabled'} (IPv6)",
             f"    Hardware Specs: {c['specs']['cpu_cores']} vCPU | {c['specs']['memory']} RAM | {disk_label(c['specs'])} Disk",
             f"    Mapped Ports  : {port_count} dedicated ports ({forward_summary(ports)})",
             f"    SSH Port      : {c['ssh_port']}",
