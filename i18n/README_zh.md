@@ -26,6 +26,8 @@
   - 支持通过 Cloudflare Origin Rules（回源规则）实现**浏览器纯域名免输端口号**的顶级体验。
 - **原生远程桌面（Windows RDP 3389 直连）**：
   - 第 4 台专机原生绑定宿主机公网 `3389` 端口（TCP & UDP），分配 2GB 内存并开启 Swap，Windows 自带远程桌面客户端（`mstsc`）直连秒开。
+- **原生 Docker 嵌套与系统调用拦截**：
+  - 默认开启 `security.nesting=true`，并配合 LXD 5.21 LTS 配置 `security.syscalls.intercept.mknod=true` 与 `setxattr=true`，完美兼容 Docker、Docker Compose 与 overlay2。
 - **内核级 Swap 分页支持**：
   - 默认开启 Swap 支持，防止 Chrome、编译或高并发应用遭遇 Linux OOM 强杀。
 - **宿主机集中归档与容器纯净保障**：

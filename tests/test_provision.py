@@ -481,3 +481,36 @@ def test_bridge_creation_enables_ipv6_when_requested():
     assert len(create_cmds) == 1
     assert "ipv6.address=fd42:43::1/64 ipv6.nat=true" in create_cmds[0]
 
+
+def test_reconcile_limits_enables_syscall_intercept():
+    lxd = FakeLXD()
+    p = provisioner(lxd)
+    res = deploy(p, name="vps-01", idx=1)
+    set_cmds = [c for c in lxd.commands if c.startswith("lxc config set")]
+    assert any("security.syscalls.intercept.mknod true" in c for c in set_cmds)
+    assert any("security.syscalls.intercept.setxattr true" in c for c in set_cmds)
+    assert res["specs"]["syscall_intercept"] is True
+
+
+def test_desktop_guide_rendered_when_rdp_port_present(tmp_path):
+    import os
+    from scripts import report
+    containers = [
+        {
+            "name": "c4-desktop",
+            "ssh_port": 2204,
+            "user": "root",
+            "ipv4": "10.0.43.40",
+            "ports": [{"ext": 3389, "proto": "tcp", "int": 3389, "role": "RDP"}],
+            "specs": {"cpu_cores": 2, "memory": "2048MB", "disk": "10GB"}
+        }
+    ]
+    artifacts = report.save_artifacts(str(tmp_path), "198.51.100.1", containers)
+    assert "desktop_md" in artifacts
+    assert os.path.exists(artifacts["desktop_md"])
+    content = open(artifacts["desktop_md"]).read()
+    assert "xorgxrdp" in content
+    assert "3389" in content
+    assert "--no-sandbox" in content
+
+

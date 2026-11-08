@@ -32,8 +32,8 @@ description: >-
 - **独立 SSH 访问管理**：
   - 自动通过 LXD 内置 proxy 设备映射宿主机高位端口（默认 `2201`, `2202`, `2203`, `2204`）至容器内部的 `22` 端口。
   - **绝对不动宿主机默认 22 端口与既有网络，保障 VPS 绝不失联**。
-- **内置 Docker 嵌套支持**：
-  - 预开启 `security.nesting=true`，容器内可直接原生安装并运行 Docker 与 Docker Compose。
+- **内置 Docker 嵌套支持与系统调用拦截**：
+  - 预开启 `security.nesting=true`，并在 LXD 5.21 LTS 下自动配置 `security.syscalls.intercept.mknod=true` 和 `security.syscalls.intercept.setxattr=true`，彻底解决非特权容器运行 Docker、overlay2 卷挂载及 mknod 设备创建权限问题。
 - **内核级 Swap 弹性支持**：
   - 默认开启 `limits.memory.swap=true`，面对桌面环境、Google Chrome、编译等突发内存开销，内核平滑分页至宿主机 Swap，彻底杜绝进程被 OOM 强杀。
 - **宿主机集中信息归档中心（`/root/02project/01LXD_vps_info/<IP>/`）**：

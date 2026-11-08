@@ -37,8 +37,8 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
   - Automatically maps public ports 80 and 443 to Container 1 for instant proxy deployment.
 - **Independent SSH Management**:
   - Maps host ports (default `2201`, `2202`, `2203`, `2204`) directly to container SSH port 22 using LXD proxy devices (zero impact on host SSH port 22).
-- **Nested Container Support**:
-  - Pre-enables `security.nesting=true` for running Docker, Docker Compose, and containerd seamlessly inside LXC.
+- **Nested Container Support & Syscall Interception**:
+  - Pre-enables `security.nesting=true` and kernel syscall intercepts (`security.syscalls.intercept.mknod=true`, `security.syscalls.intercept.setxattr=true`) on modern LXD 5.21 LTS for running Docker, Docker Compose, and overlay2 without unprivileged permission errors.
 - **Kernel-Level Swap Support**:
   - Sets `limits.memory.swap=true` so containers under burst workloads (desktop environments, Chrome, compilations) page gracefully to host swap rather than getting killed by OOM.
 - **Central Host Information Archive (`/root/02project/01LXD_vps_info/<IP>/`)**:

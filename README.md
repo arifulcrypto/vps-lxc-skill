@@ -32,8 +32,8 @@ Before setting up a host, read [Host Requirements](docs/host-requirements.md) or
   - Full support for Cloudflare Origin Rules for pure domain access without port suffixes.
 - **Native Remote Desktop (RDP 3389)**:
   - Container 4 features native Windows MSTSC direct connection on host port `3389` (TCP & UDP) with 2GB RAM + Swap.
-- **Docker Nesting**:
-  - Enables `security.nesting=true` for running Docker and Docker Compose inside containers out of the box.
+- **Docker Nesting & Syscall Interception**:
+  - Enables `security.nesting=true` and kernel syscall intercepts (`mknod`, `setxattr`) on LXD 5.21 LTS for unprivileged Docker, Docker Compose, and overlay2 out of the box.
 - **Host Information Archive & Clean Containers**:
   - Centralizes all cluster credentials, port forwarding matrices, and Cloudflare Origin Rules under `/root/02project/01LXD_vps_info/<IP>/` on the host.
   - Strict container cleanliness: containers remain 100% standard and untainted (zero internal guide markdown files).

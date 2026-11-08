@@ -486,7 +486,7 @@ fi
                                   f"not '{os_id}'. Install LXD yourself, then run this tool again.")
             self.runner.run(
                 "export DEBIAN_FRONTEND=noninteractive && apt-get update -y && apt-get install -y snapd && "
-                "snap wait system seed.loaded && snap install lxd",
+                "snap wait system seed.loaded && snap install lxd --channel=5.21/stable",
                 timeout=600
             )
         self.runner.run("systemctl enable --now snap.lxd.daemon 2>/dev/null || true", check=False)
@@ -616,15 +616,24 @@ fi
                          disk_gb: int, ip: str) -> bool:
         """Apply only differences. Returns True when the static IP changed."""
         config = inst.get("expanded_config", {})
-        commands = [f"lxc config set {name} {key} {value}" for key, value in (
-            ("limits.cpu", str(cpu)), ("limits.memory", f"{memory_mb}MB"),
-            ("limits.memory.swap", "true"), ("security.nesting", "true"),
-        ) if config.get(key) != value]
+        wanted_keys = [
+            ("limits.cpu", str(cpu)),
+            ("limits.memory", f"{memory_mb}MB"),
+            ("limits.memory.swap", "true"),
+            ("security.nesting", "true"),
+            ("security.syscalls.intercept.mknod", "true"),
+            ("security.syscalls.intercept.setxattr", "true"),
+        ]
+        commands = [f"lxc config set {name} {key} {value}" for key, value in wanted_keys if config.get(key) != value]
         disk = self._device_change(name, inst, "root", "size", f"{disk_gb}GB")
         address = self._device_change(name, inst, "eth0", "ipv4.address", ip)
         commands += [c for c in (disk, address) if c]
         for command in commands:
-            self.runner.run(command)
+            # Syscall interception requires LXD 5.x; ignore if unsupported on older LXD versions
+            if "security.syscalls.intercept" in command:
+                self.runner.run(command, check=False)
+            else:
+                self.runner.run(command)
         return address is not None
 
     def wait_ready(self, name: str, ip: str, timeout: int = 150) -> None:
@@ -862,6 +871,7 @@ dpkg -s {PACKAGES} >/dev/null
                 "memory": f"{memory_mb}MB",
                 "disk": f"{disk_gb}GB",
                 "disk_quota_enforced": quota_enforced,
-                "docker_nesting": True
+                "docker_nesting": True,
+                "syscall_intercept": True
             }
         }

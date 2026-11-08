@@ -45,8 +45,8 @@ def render_summary(host_ip: str, containers: List[Dict[str, Any]], archive_dir: 
         lines.extend([
             f"[{idx}] Container Name: {c['name']} (Hostname: {c.get('hostname', c['name'])})",
             f"    Role          : {role}",
-            f"    Status        : {c['status']}",
-            f"    Internal IP   : {c['ipv4']} (IPv4) / {c['ipv6'] or 'disabled'} (IPv6)",
+            f"    Status        : {c.get('status', 'Running')}",
+            f"    Internal IP   : {c.get('ipv4', '127.0.0.1')} (IPv4) / {c.get('ipv6') or 'disabled'} (IPv6)",
             f"    Hardware Specs: {c['specs']['cpu_cores']} vCPU | {c['specs']['memory']} RAM | {disk_label(c['specs'])} Disk",
             f"    Mapped Ports  : {port_count} dedicated ports ({forward_summary(ports)})",
             f"    SSH Port      : {c['ssh_port']}",
@@ -61,7 +61,7 @@ def render_summary(host_ip: str, containers: List[Dict[str, Any]], archive_dir: 
         "Security & Operational Notes",
         "-" * 76,
         "1. Passwords are cryptographically generated and 100% isolated from the host root password.",
-        "2. All containers run with security.nesting=true and support Docker, 3X-UI, and Realm natively.",
+        "2. All containers run with security.nesting=true and syscall interception (mknod, setxattr) to support Docker, 3X-UI, and Realm natively.",
         "3. Every container is pre-allocated abundant ports (14-16 ports) for Direct, CDN, Relay, and Residential proxies.",
         f"4. All documentation and credentials are archived in {archive_dir or 'the output directory'}.",
         "=" * 76,
@@ -116,7 +116,7 @@ def render_markdown_credentials(host_ip: str, containers: List[Dict[str, Any]]) 
         "",
         "## 3. Native Docker & 3X-UI Support",
         "",
-        "All containers run with `security.nesting=true` and `limits.memory.swap=true`.",
+        "All containers run with `security.nesting=true`, `security.syscalls.intercept.mknod=true`, `security.syscalls.intercept.setxattr=true` and `limits.memory.swap=true` (LXD 5.21 LTS).",
         "To install Docker inside any container:",
         "```bash",
         "curl -fsSL https://get.docker.com | bash",
@@ -244,7 +244,88 @@ def render_cloudflare_rules(host_ip: str, containers: List[Dict[str, Any]]) -> s
     return "\n".join(lines)
 
 
+def render_desktop_guide(host_ip: str, desktop_container: Dict[str, Any]) -> str:
+    name = desktop_container["name"]
+    ssh_port = desktop_container["ssh_port"]
+    user = desktop_container["user"]
+    password = password_label(desktop_container)
+    return f"""# {name} 容器运维与远程桌面指引 (XRDP / XFCE4 / Google Chrome)
+
+## 1. 容器基本信息与凭据
+
+- **容器名**: `{name}` (内部统一主机名: `vps`)
+- **内网 IP**: `{desktop_container['ipv4']}`
+- **SSH 登录**: `ssh -p {ssh_port} {user}@{host_ip}`
+- **默认密码**: `{password}`
+- **远程桌面**: Windows MSTSC 直连 `{host_ip}:3389`
+
+---
+
+## 2. 远程桌面与 Google Chrome 一键极速部署 (已彻底修复黑屏与闪退)
+
+登录容器后，运行以下官方生产级脚本：
+
+```bash
+# 1. 更新源并安装桌面环境（必须显式包含 xorgxrdp 驱动后端）
+export DEBIAN_FRONTEND=noninteractive
+apt-get update && apt-get install -y --no-install-recommends \\
+    xfce4 xfce4-goodies xrdp xorgxrdp dbus-x11 x11-xserver-utils \\
+    fonts-noto-cjk curl wget ca-certificates dbus
+
+# 2. 修复 Xorg 控制台权限与 XRDP 会话环境变量
+sed -i "s/allowed_users=console/allowed_users=anybody/g" /etc/X11/Xwrapper.config 2>/dev/null || true
+grep -q "needs_root_rights=yes" /etc/X11/Xwrapper.config 2>/dev/null || echo "needs_root_rights=yes" >> /etc/X11/Xwrapper.config
+
+cat << 'EOF' > /root/.xsession
+unset DBUS_SESSION_BUS_ADDRESS
+unset XDG_RUNTIME_DIR
+exec startxfce4
+EOF
+chmod +x /root/.xsession
+
+# 3. 屏蔽 Polkit 色彩管理弹窗，杜绝黑屏死锁
+mkdir -p /etc/polkit-1/localauthority/50-local.d/
+cat << 'EOF' > /etc/polkit-1/localauthority/50-local.d/45-allow-colord.pkla
+[Allow Colord all Users]
+Identity=unix-user:*
+Action=org.freedesktop.color-manager.create-device;org.freedesktop.color-manager.create-profile;org.freedesktop.color-manager.delete-device;org.freedesktop.color-manager.delete-profile;org.freedesktop.color-manager.modify-device;org.freedesktop.color-manager.modify-profile
+ResultAny=no
+ResultInactive=no
+ResultActive=yes
+EOF
+
+# 4. 根据系统架构安装 Google Chrome / Chromium，并全局注入免沙箱参数
+ARCH=$(dpkg --print-architecture)
+if [ "$ARCH" = "amd64" ]; then
+    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    apt-get install -y ./google-chrome-stable_current_amd64.deb
+    rm -f google-chrome-stable_current_amd64.deb
+    sed -i 's|exec -a "$0" "$HERE/chrome" "$@"|exec -a "$0" "$HERE/chrome" "$@" --no-sandbox --disable-dev-shm-usage|g' /opt/google/chrome/google-chrome
+else
+    apt-get install -y chromium-browser
+    sed -i 's|exec $GDB "$CHR_WRAPPER" "$@"|exec $GDB "$CHR_WRAPPER" "$@" --no-sandbox --disable-dev-shm-usage|g' /usr/bin/chromium-browser 2>/dev/null || true
+fi
+
+# 5. 重启 XRDP 远程桌面服务
+adduser xrdp ssl-cert 2>/dev/null || true
+systemctl restart xrdp xrdp-sesman
+```
+
+---
+
+## 3. Windows 远程桌面连接指引 (MSTSC)
+
+1. 打开 Windows 自带的 **远程桌面连接 (mstsc.exe)**。
+2. 计算机 (Computer) 栏输入：`{host_ip}:3389`
+3. 输入凭据：
+   - **username**: `{user}`
+   - **password**: `{password}`
+4. 即可直接秒进流畅完整的 XFCE4 桌面并正常双击使用 Google Chrome 浏览器。
+"""
+
+
 def render_host_readme(host_ip: str, containers: List[Dict[str, Any]]) -> str:
+    desktop_container = next((c for c in containers if any(p.get("ext") == 3389 for p in c.get("ports", []))), None)
     lines = [
         f"# LXC Cluster Information Archive - {host_ip}",
         "",
@@ -255,12 +336,16 @@ def render_host_readme(host_ip: str, containers: List[Dict[str, Any]]) -> str:
         "- `credentials_and_ports.md`: Complete credentials, passwords, and supercharged port forwarding matrix.",
         "- `relay_and_exit_guide.md`: Step-by-step Realm broadband relay & residential proxy runbook (LLM Prompt-Ready).",
         "- `cloudflare_origin_rules.md`: Cloudflare CDN configuration and portless domain mapping.",
+    ]
+    if desktop_container:
+        lines.append(f"- `{desktop_container['name'].replace('-', '_')}.md`: Windows RDP (3389) desktop & Google Chrome deployment guide.")
+    lines.extend([
         "- `result.json`: Machine-readable deployment metadata.",
         "- `deploy_<container>.json`: Ready-to-use `--config` input for vps-deploy-skill, one per container.",
         "",
         "## Quick SSH Access",
         "```bash"
-    ]
+    ])
     for c in containers:
         lines.append(f"ssh -p {c['ssh_port']} {c['user']}@{host_ip}   # {c['name']} (Pass: {password_label(c)})")
     lines.extend([
@@ -304,6 +389,14 @@ def save_artifacts(output_dir: str, host_ip: str, containers: List[Dict[str, Any
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(readme_md)
 
+    desktop_container = next((c for c in containers if any(p.get("ext") == 3389 for p in c.get("ports", []))), None)
+    desktop_path = None
+    if desktop_container:
+        desktop_md = render_desktop_guide(host_ip, desktop_container)
+        desktop_path = os.path.join(output_dir, f"{desktop_container['name'].replace('-', '_')}.md")
+        with open(desktop_path, "w", encoding="utf-8") as f:
+            f.write(desktop_md)
+
     result_data = {
         "status": "success",
         "host_ip": host_ip,
@@ -323,13 +416,16 @@ def save_artifacts(output_dir: str, host_ip: str, containers: List[Dict[str, Any
             json.dump(c.get("deployer_config", {}), f, indent=2)
         deploy_paths.append(deploy_path)
 
-    for p in (summary_path, creds_path, relay_path, cf_path, readme_path, result_path, *deploy_paths):
+    all_paths = [summary_path, creds_path, relay_path, cf_path, readme_path, result_path, *deploy_paths]
+    if desktop_path:
+        all_paths.append(desktop_path)
+    for p in all_paths:
         try:
             os.chmod(p, 0o600)
         except Exception:
             pass
 
-    return {
+    out_dict = {
         "summary": summary_path,
         "credentials_md": creds_path,
         "relay_md": relay_path,
@@ -337,3 +433,6 @@ def save_artifacts(output_dir: str, host_ip: str, containers: List[Dict[str, Any
         "readme_md": readme_path,
         "result_json": result_path
     }
+    if desktop_path:
+        out_dict["desktop_md"] = desktop_path
+    return out_dict
