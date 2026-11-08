@@ -512,5 +512,7 @@ def test_desktop_guide_rendered_when_rdp_port_present(tmp_path):
     assert "xorgxrdp" in content
     assert "3389" in content
     assert "--no-sandbox" in content
+    assert "Desktop" in content
+    assert "autostart" in content
 
 

@@ -306,7 +306,30 @@ else
     sed -i 's|exec $GDB "$CHR_WRAPPER" "$@"|exec $GDB "$CHR_WRAPPER" "$@" --no-sandbox --disable-dev-shm-usage|g' /usr/bin/chromium-browser 2>/dev/null || true
 fi
 
-# 5. 重启 XRDP 远程桌面服务
+# 5. 配置桌面图标与登录默认自动打开 Chrome
+mkdir -p /root/Desktop /root/.config/autostart /root/.config/xfce4
+cp -f /usr/share/applications/google-chrome.desktop /root/Desktop/ 2>/dev/null || true
+chmod +x /root/Desktop/google-chrome.desktop 2>/dev/null || true
+
+cat << 'EOF' > /root/.config/autostart/google-chrome.desktop
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Google Chrome
+Comment=Google Chrome Web Browser
+Exec=/usr/bin/google-chrome-stable --no-sandbox --disable-dev-shm-usage
+Icon=google-chrome
+Terminal=false
+StartupNotify=true
+Categories=Network;WebBrowser;
+EOF
+chmod +x /root/.config/autostart/google-chrome.desktop
+
+cat << 'EOF' > /root/.config/xfce4/helpers.rc
+WebBrowser=google-chrome
+EOF
+
+# 6. 重启 XRDP 远程桌面服务
 adduser xrdp ssl-cert 2>/dev/null || true
 systemctl restart xrdp xrdp-sesman
 ```
