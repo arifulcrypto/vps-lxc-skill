@@ -30,8 +30,9 @@ Before setting up a host, read [Host Requirements](docs/host-requirements.md) or
 - **Multi-Container Port Matrix & Cloudflare CDN**:
   - Dedicated Cloudflare HTTPS CDN ports pre-mapped for each container (`443, 8443, 2053, 2083`).
   - Full support for Cloudflare Origin Rules for pure domain access without port suffixes.
-- **Native Remote Desktop (RDP 3389)**:
+- **Native Remote Desktop (RDP 3389) & Pure Western Fonts**:
   - Container 4 features native Windows MSTSC direct connection on host port `3389` (TCP & UDP) with 2GB RAM + Swap.
+  - Defaults to pure English locale (`en_US.UTF-8`) with standard Western fonts (`Liberation`, `DejaVu`) without CJK/Chinese fonts to eliminate browser font fingerprint leakage.
 - **Docker Nesting & Syscall Interception**:
   - Enables `security.nesting=true` and kernel syscall intercepts (`mknod`, `setxattr`) on LXD 5.21 LTS for unprivileged Docker, Docker Compose, and overlay2 out of the box.
 - **Host Information Archive & Clean Containers**:

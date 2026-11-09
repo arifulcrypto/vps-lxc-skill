@@ -266,11 +266,12 @@ def render_desktop_guide(host_ip: str, desktop_container: Dict[str, Any]) -> str
 登录容器后，运行以下官方生产级脚本：
 
 ```bash
-# 1. 更新源并安装桌面环境（必须显式包含 xorgxrdp 驱动后端）
+# 1. 更新源并安装桌面环境（纯正英文环境，默认不安装中文字体，彻底杜绝 CJK 浏览器指纹泄露）
 export DEBIAN_FRONTEND=noninteractive
 apt-get update && apt-get install -y --no-install-recommends \\
     xfce4 xfce4-goodies xrdp xorgxrdp dbus-x11 x11-xserver-utils \\
-    fonts-noto-cjk curl wget ca-certificates dbus
+    fonts-dejavu-core fonts-liberation locales curl wget ca-certificates dbus
+locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
 
 # 2. 修复 Xorg 控制台权限与 XRDP 会话环境变量
 sed -i "s/allowed_users=console/allowed_users=anybody/g" /etc/X11/Xwrapper.config 2>/dev/null || true
