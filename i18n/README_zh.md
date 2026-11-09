@@ -24,9 +24,9 @@
 - **全容器 Cloudflare CDN 端口矩阵**：
   - 为每台容器预开通 Cloudflare 官方支持的专属 HTTPS 端口（`443, 8443, 2053, 2083`）。
   - 支持通过 Cloudflare Origin Rules（回源规则）实现**浏览器纯域名免输端口号**的顶级体验。
-- **原生远程桌面（Windows RDP 3389 直连）与纯净西文字体环境**：
+- **原生远程桌面（Windows RDP 3389 直连）与基础文字渲染保障**：
   - 第 4 台专机原生绑定宿主机公网 `3389` 端口（TCP & UDP），分配 2GB 内存并开启 Swap，Windows 自带远程桌面客户端（`mstsc`）直连秒开。
-  - 默认配置纯净英文环境（`en_US.UTF-8`）与西文字体，默认不安装中文字体，彻底规避海外代理环境下的 CJK 字体指纹探测。
+  - 默认保留必要的基础中文字体与 Emoji 渲染支持（`fonts-noto-cjk`、`fonts-noto-color-emoji`），确保中文字符与表情符号正常显示不乱码，不额外安装冗余中文语言包；仅在用户明确要求极端防指纹时才执行卸载。
 - **原生 Docker 嵌套与系统调用拦截**：
   - 默认开启 `security.nesting=true`，并配合 LXD 5.21 LTS 配置 `security.syscalls.intercept.mknod=true` 与 `setxattr=true`，完美兼容 Docker、Docker Compose 与 overlay2。
 - **内核级 Swap 分页支持**：

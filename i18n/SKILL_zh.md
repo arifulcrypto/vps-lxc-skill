@@ -32,9 +32,10 @@ description: >-
 - **独立 SSH 访问管理**：
   - 自动通过 LXD 内置 proxy 设备映射宿主机高位端口（默认 `2201`, `2202`, `2203`, `2204`）至容器内部的 `22` 端口。
   - **绝对不动宿主机默认 22 端口与既有网络，保障 VPS 绝不失联**。
-- **原生远程桌面与纯净西文无指纹环境**：
+- **原生远程桌面与基础文字渲染保障**：
   - 容器 4 原生支持 Windows MSTSC 直连宿主机 `3389` 端口（TCP + UDP），配备 2GB 内存与 Swap 弹性分页。
-  - 桌面环境默认采用原生英文本地化（`en_US.UTF-8`）与标准西文字体库（`fonts-liberation`、`fonts-dejavu-core`），坚决不预装中文字体与 CJK 语言包，彻底杜绝海外代理访问时被 IPPure、Cloudflare 等安全风控系统通过浏览器指纹枚举出中文字体/CJK痕迹。
+  - 默认保留必要的基础中文字体与 Emoji 渲染支持（`fonts-noto-cjk`、`fonts-noto-color-emoji`），确保中文字符与表情符号正常显示不乱码（拒绝乱码白块/豆腐块），且不刻意安装冗余的中文桌面语言包与输入法。
+  - 仅当用户明确要求完全去除中文字体与表情以达到极端防指纹环境时，才执行卸载与裁剪。
 - **内置 Docker 嵌套支持与系统调用拦截**：
   - 预开启 `security.nesting=true`，并在 LXD 5.21 LTS 下自动配置 `security.syscalls.intercept.mknod=true` 和 `security.syscalls.intercept.setxattr=true`，彻底解决非特权容器运行 Docker、overlay2 卷挂载及 mknod 设备创建权限问题。
 - **内核级 Swap 弹性支持**：

@@ -37,9 +37,9 @@ Source of truth for every agent adapter (`claude/`, `openai/`, `gemini/`). The e
   - Automatically maps public ports 80 and 443 to Container 1 for instant proxy deployment.
 - **Independent SSH Management**:
   - Maps host ports (default `2201`, `2202`, `2203`, `2204`) directly to container SSH port 22 using LXD proxy devices (zero impact on host SSH port 22).
-- **Native Remote Desktop & Pure Western Environment**:
+- **Native Remote Desktop & Necessary Font Rendering**:
   - Container 4 features native Windows MSTSC direct connection on host port `3389` (TCP & UDP) with 2GB RAM + Swap.
-  - Defaults to pure English locale (`en_US.UTF-8`) with standard Western fonts (`Liberation`, `DejaVu`) without CJK/Chinese fonts to prevent browser font fingerprint leaks during international proxy browsing.
+  - Retains necessary baseline Chinese fonts and emoji rendering (`fonts-noto-cjk`, `fonts-noto-color-emoji`) so Chinese text and emojis render cleanly without square/tofu boxes, while avoiding redundant Chinese language packs or desktop IMEs. Only uninstalls them if the user explicitly requests strict font removal.
 - **Docker Nesting & Syscall Interception**:
   - Pre-enables `security.nesting=true` and kernel syscall intercepts (`security.syscalls.intercept.mknod=true`, `security.syscalls.intercept.setxattr=true`) on modern LXD 5.21 LTS for running Docker, Docker Compose, and overlay2 without unprivileged permission errors.
 - **Kernel-Level Swap Support**:
