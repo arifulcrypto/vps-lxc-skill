@@ -306,7 +306,15 @@ else
     sed -i 's|exec $GDB "$CHR_WRAPPER" "$@"|exec $GDB "$CHR_WRAPPER" "$@" --no-sandbox --disable-dev-shm-usage|g' /usr/bin/chromium-browser 2>/dev/null || true
 fi
 
-# 5. 配置桌面图标与登录默认自动打开 Chrome
+# 5. 注入 Chrome 企业级防 WebRTC 泄露托管策略
+mkdir -p /etc/opt/chrome/policies/managed
+cat << 'EOF' > /etc/opt/chrome/policies/managed/webrtc_policy.json
+{{
+  "WebRtcIPHandlingPolicy": "disable_non_proxied_udp"
+}}
+EOF
+
+# 6. 配置桌面图标与登录默认自动打开 Chrome
 mkdir -p /root/Desktop /root/.config/autostart /root/.config/xfce4
 cp -f /usr/share/applications/google-chrome.desktop /root/Desktop/ 2>/dev/null || true
 chmod +x /root/Desktop/google-chrome.desktop 2>/dev/null || true
@@ -329,7 +337,11 @@ cat << 'EOF' > /root/.config/xfce4/helpers.rc
 WebBrowser=google-chrome
 EOF
 
-# 6. 重启 XRDP 远程桌面服务
+# 7. 内核级防火墙封锁公网 STUN UDP 探测，杜绝真实 IP WebRTC 穿透泄露
+iptables -C OUTPUT -p udp -m multiport --dports 3478,5349,19302 -j REJECT 2>/dev/null || \
+iptables -I OUTPUT -p udp -m multiport --dports 3478,5349,19302 -j REJECT
+
+# 8. 重启 XRDP 远程桌面服务
 adduser xrdp ssl-cert 2>/dev/null || true
 systemctl restart xrdp xrdp-sesman
 ```
